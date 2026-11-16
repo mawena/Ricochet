@@ -2,6 +2,8 @@
 Description=Ricochet, agent de contrôle à distance
 After=network-online.target
 Wants=network-online.target
+# Sans configuration (jeton donné par le relais), ne pas démarrer.
+ConditionPathExists=/etc/ricochet/agent.toml
 
 [Service]
 ExecStart=/usr/bin/ricochet-agent executer --config /etc/ricochet/agent.toml

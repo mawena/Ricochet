@@ -1,5 +1,7 @@
 # Ricochet
 
+Site et installation : <https://mawena.github.io/Ricochet/>
+
 Contrôle à distance de mes machines, même celles qui n'ont **pas d'adresse IP publique**.
 
 Chaque machine fait tourner un **agent** qui ouvre lui-même une connexion sortante chiffrée
@@ -22,30 +24,47 @@ fichiers et le reste sont dans la [feuille de route](ROADMAP.md).
 
 ## Installation
 
-Pas encore de paquet : il arrivera avec la release 0.1.0 (`.deb` et dépôt APT). En attendant,
-depuis les sources (Rust stable récent) :
+Site et dépôt APT signé : <https://mawena.github.io/Ricochet/> (Ubuntu 24.04, amd64).
+
+En une ligne, l'agent sur chaque machine, ou le relais sur le serveur public :
 
 ```sh
-cargo build --release
-# binaires : target/release/ricochet-serveur et target/release/ricochet-agent
-sudo install target/release/ricochet-serveur target/release/ricochet-agent /usr/bin/
+curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh               # agent
+curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh -s serveur    # relais
 ```
+
+Pas à pas (ce que fait le script) :
+
+```sh
+sudo curl -fsSLo /usr/share/keyrings/ricochet.gpg https://mawena.github.io/Ricochet/apt/ricochet.gpg
+sudo curl -fsSLo /etc/apt/sources.list.d/ricochet.sources https://mawena.github.io/Ricochet/apt/ricochet.sources
+sudo apt update
+sudo apt install ricochet-agent      # ou ricochet-serveur
+```
+
+Mises à jour : `sudo apt update && sudo apt upgrade`. Lancée depuis un terminal Ricochet, la
+mise à jour va jusqu'au bout : le service n'est redémarré qu'une fois apt terminé (le
+terminal se ferme alors, il suffit de le rouvrir).
+
+Trois paquets : `ricochet-agent`, `ricochet-serveur` et `ricochet-depot` (source APT et clé du
+dépôt, installé avec les deux autres). En dernier recours, les `.deb` et leurs sommes SHA-256
+sont sur la page de la [dernière version](https://github.com/mawena/Ricochet/releases/latest) :
+`sudo apt install ./ricochet-depot_*_all.deb ./ricochet-agent_*_amd64.deb`.
+
+Depuis les sources (Rust stable récent) : `cargo build --release`, binaires dans
+`target/release/` ; `scripts/construire-deb.sh` construit les paquets dans `dist/`.
 
 ## Utilisation
 
 ### 1. Lancer le relais (sur le serveur public)
 
-```sh
-sudo useradd --system --home-dir /var/lib/ricochet --shell /usr/sbin/nologin ricochet
-sudo install -d -m 755 /etc/ricochet
-sudo install -m 644 exemples/serveur.toml /etc/ricochet/serveur.toml   # à relire
-sudo cp deploiement/ricochet-serveur.service /etc/systemd/system/
-sudo systemctl enable --now ricochet-serveur
-```
-
-Le relais écoute en local (`127.0.0.1:7870`) et garde ses données dans
-`/var/lib/ricochet/ricochet.db` (SQLite, droits `600`). nginx assure le HTTPS devant lui
-(modèle : [deploiement/nginx-ricochet.conf](deploiement/nginx-ricochet.conf)).
+Le paquet `ricochet-serveur` crée l'utilisateur système `ricochet`, installe
+`/etc/ricochet/serveur.toml` (à relire) et démarre le service `ricochet-serveur`. Le relais
+écoute en local (`127.0.0.1:7870`) et garde ses données dans `/var/lib/ricochet/ricochet.db`
+(SQLite, droits `600`). nginx assure le HTTPS devant lui (modèle :
+[deploiement/nginx-ricochet.conf](deploiement/nginx-ricochet.conf), aussi dans
+`/usr/share/doc/ricochet-serveur/`). Après un changement de configuration :
+`sudo systemctl restart ricochet-serveur`.
 
 ### 2. Créer un compte opérateur
 
@@ -75,9 +94,10 @@ Coller la configuration donnée par l'interface dans `/etc/ricochet/agent.toml`,
 (modèle : [exemples/agent.toml](exemples/agent.toml)), puis :
 
 ```sh
-sudo cp deploiement/ricochet-agent.service /etc/systemd/system/
-sudo systemctl enable --now ricochet-agent
+sudo systemctl start ricochet-agent
 ```
+
+Le service est activé par le paquet mais ne démarre pas tant que `agent.toml` n'existe pas.
 
 L'agent se reconnecte seul après une coupure (1 s, 2 s, 4 s… jusqu'à une minute).
 
@@ -148,6 +168,9 @@ Les journaux suivent `RUST_LOG` (défaut `info`).
 | `crates/ricochet-agent` | agent : connexion, état de la machine, terminaux (PTY), reconnexion ; test de bout en bout |
 | `exemples/` | configurations d'exemple |
 | `deploiement/` | services systemd et configuration nginx |
+| `paquets/` | scripts de maintenance des `.deb` ; `apt/` : clé et source du dépôt APT (`LISEZMOI`) |
+| `scripts/` | `construire-deb.sh` (paquets dans `dist/`), `publier-apt.sh` (dépôt sur gh-pages) |
+| `site/` | page d'accueil et `installer.sh`, publiés sur GitHub Pages avec le dépôt APT |
 
 Tests : `cargo test`.
 
