@@ -10,8 +10,8 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 ## Où on en est
 - Phases 0, 1 et 2 faites (protocole, relais, agent, API, interface web, comptes Argon2 + TOTP,
   sessions, ajout/révocation de machines, audit) sauf **1.8** (déployer le relais sur le VPS) et
-  **1.9** (installer les agents). Phase 3 : terminal fait (3.1 à 3.3) ; restent **3.4** (paquets
-  `.deb` + dépôt APT) et **3.5** (release 0.1.0). Voir `ROADMAP.md`, la source de vérité du plan.
+  **1.9** (installer les agents). Phase 3 : terminal (3.1 à 3.3) et paquets `.deb` + dépôt APT (3.4)
+  faits ; reste **3.5** (release 0.1.0). Voir `ROADMAP.md`, la source de vérité du plan.
 - **Pas encore de release** : la première (0.1.0, `.deb` + dépôt APT signé selon
   `~/.claude/regles/deb-apt.md`) est prévue à la fin de la phase 3 (terminal), pas avant.
 
@@ -35,6 +35,12 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 - `crates/ricochet-agent/tests/bout_en_bout.rs` : vrai relais + vrai agent sur 127.0.0.1.
 - Essai de l'interface sans écran : Chromium de Playwright dans `~/.cache/ms-playwright`
   (`chrome-headless-shell --remote-debugging-pipe`, piloté en CDP par un petit script Python).
+- Paquets : `scripts/construire-deb.sh` (dpkg-deb direct, sans debhelper ; `ricochet-serveur`,
+  `ricochet-agent` en amd64, `ricochet-depot` en all pour la source APT et la clé, dont les deux
+  dépendent) ; scripts de maintenance dans `paquets/` (`#REDEMARRAGE#` remplacé par
+  `redemarrage.sh` : redémarrage différé après apt, pour ne pas tuer un apt lancé depuis un
+  terminal Ricochet). `scripts/publier-apt.sh` (copie de celui de CCS) publie `dist/*.deb` et
+  `site/` sur gh-pages. Clé APT `EF71E945…51C91F12` dans le trousseau du VPS (`paquets/apt/LISEZMOI`).
 - `deploiement/` : services systemd et vhost nginx (WebSocket, `X-Real-IP`). `exemples/` : configs.
 
 ## Façon de travailler (en plus de `~/.claude/CLAUDE.md`)

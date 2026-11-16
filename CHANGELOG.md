@@ -8,6 +8,10 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ### Ajouté
 
+- Paquets `.deb` (`ricochet-serveur`, `ricochet-agent`, `ricochet-depot`) et dépôt APT signé
+  sur <https://mawena.github.io/Ricochet/apt>, avec un script d'installation en une ligne.
+  Une mise à jour ne redémarre les services qu'une fois apt terminé, pour ne pas couper le
+  terminal Ricochet qui l'a lancée.
 - Terminal à distance : shell dans un pseudo-terminal sur la machine (agent, section
   `[terminal]` de `agent.toml`, désactivé par défaut), relayé par le relais
   (`GET /api/machines/{id}/terminal`, WebSocket, origine vérifiée) jusqu'au navigateur

@@ -1,0 +1,5 @@
+Types: deb
+URIs: https://mawena.github.io/Ricochet/apt
+Suites: stable
+Components: main
+Signed-By: /usr/share/keyrings/ricochet.gpg

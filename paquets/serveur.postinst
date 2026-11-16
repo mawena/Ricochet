@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    if ! getent passwd ricochet >/dev/null; then
+        adduser --system --group --home /var/lib/ricochet --no-create-home \
+            --gecos "Ricochet, relais" ricochet >/dev/null
+    fi
+    install -d -m 700 -o ricochet -g ricochet /var/lib/ricochet
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    if [ -z "$2" ]; then
+        # Première installation : le relais n'écoute qu'en local (nginx devant).
+        systemctl enable --now ricochet-serveur.service >/dev/null 2>&1 || true
+    else
+        #REDEMARRAGE# ricochet-serveur
+    fi
+fi
+exit 0

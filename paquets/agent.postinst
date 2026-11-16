@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable ricochet-agent.service >/dev/null 2>&1 || true
+    if [ -z "$2" ]; then
+        if [ -f /etc/ricochet/agent.toml ]; then
+            systemctl start ricochet-agent.service >/dev/null 2>&1 || true
+        else
+            echo "ricochet-agent : écrire /etc/ricochet/agent.toml (droits 600, configuration donnée"
+            echo "  par l'interface du relais), puis : sudo systemctl start ricochet-agent"
+        fi
+    else
+        #REDEMARRAGE# ricochet-agent
+    fi
+fi
+exit 0
