@@ -60,14 +60,19 @@
             <label>Nom affiché (facultatif)
               <input name="nom" maxlength="100" placeholder="PC du bureau">
             </label>
+            <label>Terminal : utilisateur de la machine (vide = pas de terminal)
+              <input name="utilisateur" pattern="[a-z_][a-z0-9_\-]{0,31}" autocapitalize="none"
+                     placeholder="charles">
+            </label>
             <button type="submit">Créer le jeton</button>
           </form>
         </details>
 
         <div id="nouveau-jeton" class="carte alerte" hidden>
           <h2>Jeton de <span id="nouveau-id"></span></h2>
-          <p>Il ne sera <strong>plus jamais affiché</strong>. Copiez cette configuration dans
-            <code>/etc/ricochet/agent.toml</code> sur la machine :</p>
+          <p>Il ne sera <strong>plus jamais affiché</strong>. Collez cette commande dans un
+            terminal de la machine (Ubuntu 24.04, amd64) : elle installe l'agent, écrit sa
+            configuration dans <code>/etc/ricochet/agent.toml</code> et le démarre.</p>
           <pre id="nouvelle-config"></pre>
           <div class="actions">
             <button type="button" id="copier">Copier</button>
