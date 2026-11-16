@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ricochet, contrôle à distance de vos machines, même sans IP publique</title>
+<meta name="description" content="Ricochet commande vos machines Linux à distance depuis un navigateur, même derrière une box : état, terminal, journal d'audit. Relais et agent en Rust, installation par apt sur Ubuntu.">
+<meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1814" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="entete">
+  <a class="marque" href="./"><img src="icone.svg" alt="" width="32" height="32"><span>Ricochet</span></a>
+  <nav aria-label="Liens du projet">
+    <a href="#installer">Installer</a>
+    <a href="https://github.com/mawena/Ricochet/releases/latest">Dernière version</a>
+    <a href="https://github.com/mawena/Ricochet">Code source</a>
+  </nav>
+</header>
+
+<main>
+  <section class="ouverture" aria-labelledby="titre">
+    <h1 id="titre">Vos machines à portée de téléphone, même sans IP publique</h1>
+    <p class="chapeau">Chaque machine fait tourner un agent qui ouvre lui-même une connexion chiffrée vers votre relais. La connexion « ricoche » sur le relais : pas de port à ouvrir, ça marche derrière une box ou un NAT. Vous commandez tout depuis un navigateur.</p>
+
+    <div class="installation-courte">
+      <p>L'agent, sur chaque machine (Ubuntu 24.04, amd64) :</p>
+      <div class="commande">
+        <pre><code id="cmd-courte">curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh</code></pre>
+        <button type="button" class="copier" data-cible="cmd-courte">Copier</button>
+      </div>
+      <p>Le relais, sur le serveur public :</p>
+      <div class="commande">
+        <pre><code id="cmd-relais">curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh -s serveur</code></pre>
+        <button type="button" class="copier" data-cible="cmd-relais">Copier</button>
+      </div>
+      <p class="nuance">Le script ajoute le dépôt APT signé puis installe le paquet ; <a href="#installer">les commandes qu'il lance</a> sont détaillées plus bas, pour qui préfère les taper soi-même.</p>
+    </div>
+  </section>
+
+  <section class="points" aria-labelledby="points-titre">
+    <h2 id="points-titre">Ce que fait Ricochet</h2>
+    <div class="grille">
+      <article>
+        <h3>Sans IP publique</h3>
+        <p>L'agent se connecte en sortie (WebSocket sur TLS) et se reconnecte seul après une coupure : le PC derrière une box est joignable comme un serveur.</p>
+      </article>
+      <article>
+        <h3>L'état d'un coup d'œil</h3>
+        <p>Processeur, charge, mémoire, disques et durée d'allumage de chaque machine, en ligne ou non.</p>
+      </article>
+      <article>
+        <h3>Un terminal dans le navigateur</h3>
+        <p>Un vrai shell (xterm.js), redimensionnable, avec une barre de touches pour le téléphone : Échap, Tab, Ctrl, flèches.</p>
+      </article>
+      <article>
+        <h3>Protégé</h3>
+        <p>Mot de passe Argon2id et code TOTP, jetons de machine révocables, en-têtes contre les requêtes forgées, politique de sécurité stricte.</p>
+      </article>
+      <article>
+        <h3>Tout est noté</h3>
+        <p>Connexions, machines ajoutées ou révoquées, terminaux ouverts et fermés : un journal d'audit consultable dans l'interface.</p>
+      </article>
+      <article>
+        <h3>Léger</h3>
+        <p>Relais et agent en Rust, un binaire chacun, un service systemd chacun ; le relais garde ses données dans SQLite.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="installer" id="installer" aria-labelledby="installer-titre">
+    <h2 id="installer-titre">Installer</h2>
+    <p>Pour Ubuntu 24.04 et les distributions Debian équivalentes, sur processeur amd64. Une fois le dépôt ajouté, <code>sudo apt upgrade</code> apporte les nouvelles versions.</p>
+    <ol class="pas">
+      <li>
+        <p>Ajouter la clé qui signe le dépôt :</p>
+        <div class="commande"><pre><code id="cmd-cle">sudo curl -fsSLo /usr/share/keyrings/ricochet.gpg https://mawena.github.io/Ricochet/apt/ricochet.gpg</code></pre><button type="button" class="copier" data-cible="cmd-cle">Copier</button></div>
+      </li>
+      <li>
+        <p>Ajouter le dépôt :</p>
+        <div class="commande"><pre><code id="cmd-source">sudo curl -fsSLo /etc/apt/sources.list.d/ricochet.sources https://mawena.github.io/Ricochet/apt/ricochet.sources</code></pre><button type="button" class="copier" data-cible="cmd-source">Copier</button></div>
+      </li>
+      <li>
+        <p>Installer l'agent sur chaque machine, ou le relais sur le serveur :</p>
+        <div class="commande"><pre><code id="cmd-installer">sudo apt update &amp;&amp; sudo apt install ricochet-agent</code></pre><button type="button" class="copier" data-cible="cmd-installer">Copier</button></div>
+        <div class="commande"><pre><code id="cmd-serveur">sudo apt update &amp;&amp; sudo apt install ricochet-serveur</code></pre><button type="button" class="copier" data-cible="cmd-serveur">Copier</button></div>
+      </li>
+      <li>
+        <p>Relais : mettre nginx devant (modèle dans <code>/usr/share/doc/ricochet-serveur/nginx-ricochet.conf</code>), puis créer votre compte :</p>
+        <div class="commande"><pre><code id="cmd-compte">sudo -u ricochet ricochet-serveur compte ajouter moi</code></pre><button type="button" class="copier" data-cible="cmd-compte">Copier</button></div>
+      </li>
+      <li>
+        <p>Agent : « Ajouter une machine » dans l'interface donne sa configuration ; la coller dans <code>/etc/ricochet/agent.toml</code> (droits 600), puis :</p>
+        <div class="commande"><pre><code id="cmd-agent">sudo systemctl start ricochet-agent</code></pre><button type="button" class="copier" data-cible="cmd-agent">Copier</button></div>
+      </li>
+    </ol>
+    <p>Sans le dépôt : téléchargez les paquets <code>.deb</code> et leurs sommes de contrôle sur la page de la <a href="https://github.com/mawena/Ricochet/releases/latest">dernière version</a>, puis <code>sudo apt install ./ricochet-depot_*_all.deb ./ricochet-agent_*_amd64.deb</code>. Le paquet <code>ricochet-depot</code> ajoute le dépôt : les mises à jour suivantes passent ensuite par <code>sudo apt upgrade</code>.</p>
+  </section>
+</main>
+
+<footer class="pied">
+  <p>Ricochet est un logiciel libre sous licence MIT, écrit par <a href="https://github.com/mawena">mawena</a>.</p>
+  <p>Clé du dépôt APT : <code>EF71 E945 27F9 9E6A C6CC 017C 5038 4B43 51C9 1F12</code></p>
+</footer>
+
+<script src="ricochet.js" defer></script>
+</body>
+</html>

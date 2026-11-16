@@ -1,0 +1,38 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: all amd64
+Codename: stable
+Components: main
+Date: Mon, 16 Nov 2026 11:00:05 +0000
+Description: Ricochet, contrôle à distance
+Label: Ricochet
+Origin: Ricochet
+Suite: stable
+MD5Sum:
+ 8fd9db36999d36aeb73fd84913b03109              658 main/binary-all/Packages
+ ce732eae06dc25783e6b9c4acb71c7c9              456 main/binary-all/Packages.gz
+ 05963dafc48ec24efd0df7e6f559c5fe             2497 main/binary-amd64/Packages
+ a8fa41a88a146010c833a5451677d7b1             1158 main/binary-amd64/Packages.gz
+SHA1:
+ 7c1b8480bdea8576c5aab1def52c187510d3f94a              658 main/binary-all/Packages
+ 6363e3ee937d1520926e2d69cfdda5e127c84a32              456 main/binary-all/Packages.gz
+ 42ce89d69f8483440e839ac7ba2f9124d15359a8             2497 main/binary-amd64/Packages
+ 76ccf1550d9e35b37081b168c0a186244198e43c             1158 main/binary-amd64/Packages.gz
+SHA256:
+ 57a57e1a054eb487bba87484d3b7544eedf46dd5fe7d8f509c0e95fe8bb9bc99              658 main/binary-all/Packages
+ 42264604a795d30a16aa30f592eee86cd76e384ffb7108dac70d44da29222f18              456 main/binary-all/Packages.gz
+ 872dd5fd4a7200da21f462f1ed37f21a8e7e57a5de2ad6a0be6611d1be873283             2497 main/binary-amd64/Packages
+ 6d003a67b9ad5003c1dfbba6010aa2da03ef2a9dc06ecc9293e79d5ac984e966             1158 main/binary-amd64/Packages.gz
+SHA512:
+ 2e72287d09007efdd81f67c05ba50528958e4c1915ab878997a4f43b63182f6c2fb9ec846891404091470fd9a57ddacd75e14e2fad3ac6219c5625b0c02a1ddc              658 main/binary-all/Packages
+ 111b3a36e2e8213c54efca5d22297e1148567e1b5a7253ba3d1c3d7de750db3b612abf36174184cd021f9f899877d9162a462acbbd9eb972abdfa63447025e43              456 main/binary-all/Packages.gz
+ d0975d2f0a9d5d859b84b829d1e067688986a1ba400ab8e2eaf6e9c37a9062821c8ea5e884b9b5a6350d0229c049dc22e4f95dfd892fbc9d524483ef77b32d62             2497 main/binary-amd64/Packages
+ 6b3fb46f9ba277369f0d239feb9ff38096077e8f2d91d12572f6e6861eba3c9f40c4a6b94c11c657fea804975eb9989a05ce113e098667eabe75767e0baab642             1158 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQTvcelFJ/measbMAXxQOEtDUckfEgUCavriNQAKCRBQOEtDUckf
+EqtQAQC5KkzHdV763QjXYxd9s1HczlLfTOnNF8JsfG7rtlvmHAD9HwsODSqgBHcs
+LnuU90p67Lg6E6wpZ6XE64etsZoh7wA=
+=xS3h
+-----END PGP SIGNATURE-----
