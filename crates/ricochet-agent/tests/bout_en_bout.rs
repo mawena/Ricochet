@@ -8,16 +8,15 @@ use ricochet_agent::{
     systeme::Collecteur,
 };
 use ricochet_protocole::Refus;
-use ricochet_serveur::{Relais, application, jeton};
+use ricochet_serveur::{Base, Relais, application, jeton};
 
 async fn demarrer_relais() -> (String, Arc<Relais>) {
-    let config = ricochet_serveur::Config::depuis_texte(&format!(
-        "jeton_operateur_sha256 = \"{}\"\nintervalle_etat_s = 1\n[[agents]]\nid = \"pc\"\njeton_sha256 = \"{}\"\n",
-        jeton::empreinte("operateur"),
-        jeton::empreinte("secret-pc"),
-    ))
-    .unwrap();
-    let (routeur, relais) = application(config);
+    let config = ricochet_serveur::Config::depuis_texte("intervalle_etat_s = 1").unwrap();
+    let base = Base::en_memoire();
+    base.ajouter_machine("pc", None, &jeton::empreinte("secret-pc"), 0)
+        .unwrap();
+    let relais = Arc::new(Relais::new(config, base));
+    let routeur = application(relais.clone());
     let auditeur = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let adresse = auditeur.local_addr().unwrap();
     tokio::spawn(async move {
@@ -53,7 +52,10 @@ async fn agent_connecte_et_envoie_son_etat() {
     let mut vue = None;
     for _ in 0..50 {
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let machine = relais.registre.liste(&relais.config).remove(0);
+        let machine = relais
+            .registre
+            .liste(&relais.base.machines().unwrap())
+            .remove(0);
         if machine.connectee && machine.etat.is_some() {
             vue = Some(machine);
             break;
@@ -76,13 +78,40 @@ async fn agent_connecte_et_envoie_son_etat() {
 }
 
 #[tokio::test]
+async fn machine_revoquee_deconnectee() {
+    let (url, relais) = demarrer_relais().await;
+    let config = agent(&url, "secret-pc");
+    let tache =
+        tokio::spawn(async move { session(&config, &mut Collecteur::new().unwrap()).await });
+    for _ in 0..50 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if relais.registre.liste(&relais.base.machines().unwrap())[0].connectee {
+            break;
+        }
+    }
+    relais.base.supprimer_machine("pc").unwrap();
+    relais.registre.retirer("pc");
+    let fin = tokio::time::timeout(Duration::from_secs(5), tache)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(fin, Fin::Fermee);
+    // Le jeton ne vaut plus rien.
+    let fin = session(&agent(&url, "secret-pc"), &mut Collecteur::new().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(fin, Fin::Refusee(Refus::Identification));
+}
+
+#[tokio::test]
 async fn mauvais_jeton_refuse() {
     let (url, relais) = demarrer_relais().await;
     let fin = session(&agent(&url, "faux"), &mut Collecteur::new().unwrap())
         .await
         .unwrap();
     assert_eq!(fin, Fin::Refusee(Refus::Identification));
-    assert!(!relais.registre.liste(&relais.config)[0].connectee);
+    assert!(!relais.registre.liste(&relais.base.machines().unwrap())[0].connectee);
 }
 
 #[tokio::test]

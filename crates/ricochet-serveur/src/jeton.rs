@@ -5,11 +5,16 @@ use std::io::Read;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
+/// Octets aléatoires tirés du générateur du noyau.
+pub fn octets_aleatoires<const N: usize>() -> std::io::Result<[u8; N]> {
+    let mut octets = [0u8; N];
+    std::fs::File::open("/dev/urandom")?.read_exact(&mut octets)?;
+    Ok(octets)
+}
+
 /// Crée un jeton aléatoire de 256 bits, en hexadécimal.
 pub fn nouveau() -> std::io::Result<String> {
-    let mut octets = [0u8; 32];
-    std::fs::File::open("/dev/urandom")?.read_exact(&mut octets)?;
-    Ok(hex::encode(octets))
+    Ok(hex::encode(octets_aleatoires::<32>()?))
 }
 
 /// Empreinte SHA-256 d'un jeton, en hexadécimal : c'est elle qu'on écrit dans la configuration.

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#1d4ed8">
+  <title>Ricochet</title>
+  <link rel="icon" href="/icone.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1><img src="/icone.svg" alt="" width="24" height="24"> Ricochet</h1>
+    <div id="identite" hidden>
+      <span id="compte"></span>
+      <button id="deconnexion" type="button" class="discret">Déconnexion</button>
+    </div>
+  </header>
+
+  <main>
+    <p id="message" role="status" hidden></p>
+
+    <section id="ecran-connexion" hidden>
+      <form id="formulaire-connexion" class="carte">
+        <h2>Connexion</h2>
+        <label>Compte
+          <input name="nom" autocomplete="username" autocapitalize="none" required>
+        </label>
+        <label>Mot de passe
+          <input name="mot_de_passe" type="password" autocomplete="current-password" required>
+        </label>
+        <label>Code de l'application d'authentification
+          <input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                 autocomplete="one-time-code" placeholder="123456" required>
+        </label>
+        <button type="submit">Se connecter</button>
+      </form>
+    </section>
+
+    <section id="ecran-tableau" hidden>
+      <nav class="onglets">
+        <button type="button" data-onglet="machines" class="actif">Machines</button>
+        <button type="button" data-onglet="journal">Journal</button>
+      </nav>
+
+      <div id="onglet-machines">
+        <div id="machines"></div>
+        <p id="aucune-machine" class="vide" hidden>Aucune machine pour l'instant.</p>
+
+        <details id="ajout" class="carte">
+          <summary>Ajouter une machine</summary>
+          <form id="formulaire-ajout">
+            <label>Identifiant (lettres, chiffres, - et _)
+              <input name="id" pattern="[A-Za-z0-9_\-]{1,64}" autocapitalize="none" required
+                     placeholder="pc-bureau">
+            </label>
+            <label>Nom affiché (facultatif)
+              <input name="nom" maxlength="100" placeholder="PC du bureau">
+            </label>
+            <button type="submit">Créer le jeton</button>
+          </form>
+        </details>
+
+        <div id="nouveau-jeton" class="carte alerte" hidden>
+          <h2>Jeton de <span id="nouveau-id"></span></h2>
+          <p>Il ne sera <strong>plus jamais affiché</strong>. Copiez cette configuration dans
+            <code>/etc/ricochet/agent.toml</code> sur la machine :</p>
+          <pre id="nouvelle-config"></pre>
+          <div class="actions">
+            <button type="button" id="copier">Copier</button>
+            <button type="button" id="fermer-jeton" class="discret">J'ai copié, fermer</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="onglet-journal" hidden>
+        <ol id="journal" class="journal"></ol>
+      </div>
+    </section>
+  </main>
+
+  <template id="modele-machine">
+    <article class="carte machine">
+      <div class="entete-machine">
+        <span class="pastille"></span>
+        <div>
+          <h2 class="nom"></h2>
+          <p class="sous-titre"></p>
+        </div>
+      </div>
+      <dl class="mesures"></dl>
+      <div class="disques"></div>
+      <p class="vu"></p>
+      <div class="actions">
+        <button type="button" class="actualiser">Actualiser</button>
+        <button type="button" class="revoquer danger discret">Révoquer</button>
+      </div>
+    </article>
+  </template>
+</body>
+</html>

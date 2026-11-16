@@ -1,21 +1,22 @@
 # Configuration du relais : /etc/ricochet/serveur.toml
-# Les jetons ne sont jamais écrits ici, seulement leur empreinte (`ricochet-serveur jeton`).
+# Les machines et les comptes opérateur ne sont pas ici : ils vivent dans la base de données.
+# Comptes : `sudo -u ricochet ricochet-serveur compte ajouter <nom>` ; machines : interface web.
 
 # Adresse d'écoute, locale : nginx assure le HTTPS devant.
 ecoute = "127.0.0.1:7870"
 
-# Empreinte du jeton de l'opérateur (accès à l'API).
-jeton_operateur_sha256 = "remplacer-par-l-empreinte-de-64-caracteres"
+# Base SQLite (comptes, sessions, machines, journal d'audit).
+base = "/var/lib/ricochet/ricochet.db"
+
+# Durée de vie d'une session de l'interface, en heures.
+duree_session_h = 12
+
+# Cookie de session réservé au HTTPS. Mettre false seulement pour un essai local en HTTP.
+cookie_securise = true
 
 # Période d'envoi de l'état par les agents, en secondes.
 intervalle_etat_s = 30
 
-[[agents]]
-id = "pc"
-nom = "PC de Charles"
-jeton_sha256 = "remplacer-par-l-empreinte-de-64-caracteres"
-
-[[agents]]
-id = "vps"
-nom = "VPS mawena.cloud"
-jeton_sha256 = "remplacer-par-l-empreinte-de-64-caracteres"
+# Facultatif : empreinte d'un jeton pour appeler l'API depuis un script
+# (`ricochet-serveur jeton`, puis `Authorization: Bearer <jeton>`).
+# jeton_operateur_sha256 = "empreinte-de-64-caracteres"
