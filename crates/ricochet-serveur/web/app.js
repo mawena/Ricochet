@@ -487,7 +487,10 @@ async function chargerDossier(chemin) {
     const n = d.entrees.length;
     etatFichiers(d.tronque ? `${n} premiers éléments seulement` : `${n} élément${n > 1 ? "s" : ""}`);
   } catch (erreur) {
-    if (fichiers === session) etatFichiers(erreur.message, true);
+    if (fichiers !== session) return;
+    // Le champ revient au dossier affiché, celui où « Envoyer ici » écrira.
+    $("#chemin-fichiers").value = session.chemin;
+    etatFichiers(erreur.message, true);
   }
 }
 
