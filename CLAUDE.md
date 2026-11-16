@@ -8,10 +8,11 @@ Choix validés par Charles le 16/11/2026 : tout en **Rust** ; fonctions voulues 
 fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en dernier).
 
 ## Où on en est
-- Phases 0, 1 et 2 faites (protocole, relais, agent, API, interface web, comptes Argon2 + TOTP,
-  sessions, ajout/révocation de machines, audit) sauf **1.8** (déployer le relais sur le VPS) et
-  **1.9** (installer les agents). Phase 3 faite : terminal, paquets
-  `.deb` + dépôt APT, **release 0.1.0** (16/11/2026). Prochaine : phase 4 (fichiers). Voir `ROADMAP.md`, la source de vérité du plan.
+- Phases 0 à 3 faites (protocole, relais, agent, interface web, comptes Argon2 + TOTP, audit,
+  terminal, paquets `.deb` + dépôt APT). Dernière release **0.1.2** (16/11/2026). **1.8 faite** :
+  relais en ligne sur https://ricochet.mawena.cloud (paquet, vhost `/etc/nginx/sites-available/ricochet`,
+  certificat certbot, compte `mawena`). **1.9 en cours** : agent `mawena-cloud` à passer en 0.1.1+
+  (la 0.1.0 paniquait en wss://), puis l'agent du PC. Ensuite phase 4 (fichiers). Voir `ROADMAP.md`.
 - Releases : `scripts/construire-deb.sh`, `gh release create` avec `dist/*`, puis
   `scripts/publier-apt.sh dist/*.deb` (site https://mawena.github.io/Ricochet/).
 
