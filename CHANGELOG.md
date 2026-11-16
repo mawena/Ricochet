@@ -8,6 +8,23 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ### Ajouté
 
+- Terminal à distance : shell dans un pseudo-terminal sur la machine (agent, section
+  `[terminal]` de `agent.toml`, désactivé par défaut), relayé par le relais
+  (`GET /api/machines/{id}/terminal`, WebSocket, origine vérifiée) jusqu'au navigateur
+  (xterm.js 6.0 intégré, chargé à la demande). Redimensionnement, plusieurs terminaux par
+  machine (8 au plus), barre de touches pour le téléphone (Échap, Tab, Ctrl, flèches).
+  Ouvertures et fermetures au journal d'audit ; fermeture à l'expiration de la session, à la
+  déconnexion ou à la révocation de la machine.
+- Protocole agent ↔ relais : messages JSON dans un WebSocket, version 1.
+- Relais `ricochet-serveur` : connexion des agents avec jeton par machine, remplacement d'une
+  connexion par la suivante, pings et détection des agents silencieux, registre des machines.
+- API de l'opérateur : `GET /api/machines`,
+  `POST /api/machines/{id}/actualiser` ; `GET /sante`.
+- Agent `ricochet-agent` : connexion sortante (marche derrière une box ou un NAT), envoi de
+  l'état de la machine (processeur, charge, mémoire, disques, durée d'allumage), reconnexion
+  automatique avec attente croissante ; commande `ricochet-agent etat`.
+- Commande `ricochet-serveur jeton` pour créer un jeton et son empreinte.
+- Exemples de configuration, services systemd et configuration nginx.
 - Interface web adaptée au téléphone : machines en ligne ou non, processeur, mémoire, charge,
   disques, actualisation ; ajout d'une machine (jeton affiché une seule fois) et révocation ;
   journal d'audit. Intégrée au binaire du relais, installable sur l'écran d'accueil.
@@ -28,14 +45,6 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
   facultatif (accès des scripts à l'API).
 - Le service systemd du relais tourne sous l'utilisateur `ricochet` avec
   `StateDirectory=ricochet`, pour partager la base avec la commande `compte`.
+- La CSP autorise les styles en ligne (xterm.js crée ses balises `<style>`) ; les scripts
+  restent limités aux fichiers du relais.
 
-- Protocole agent ↔ relais : messages JSON dans un WebSocket, version 1.
-- Relais `ricochet-serveur` : connexion des agents avec jeton par machine, remplacement d'une
-  connexion par la suivante, pings et détection des agents silencieux, registre des machines.
-- API de l'opérateur : `GET /api/machines`,
-  `POST /api/machines/{id}/actualiser` ; `GET /sante`.
-- Agent `ricochet-agent` : connexion sortante (marche derrière une box ou un NAT), envoi de
-  l'état de la machine (processeur, charge, mémoire, disques, durée d'allumage), reconnexion
-  automatique avec attente croissante ; commande `ricochet-agent etat`.
-- Commande `ricochet-serveur jeton` pour créer un jeton et son empreinte.
-- Exemples de configuration, services systemd et configuration nginx.

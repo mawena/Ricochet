@@ -10,8 +10,8 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 ## Où on en est
 - Phases 0, 1 et 2 faites (protocole, relais, agent, API, interface web, comptes Argon2 + TOTP,
   sessions, ajout/révocation de machines, audit) sauf **1.8** (déployer le relais sur le VPS) et
-  **1.9** (installer les agents). Voir `ROADMAP.md`, la source de vérité du plan.
-- Prochaine étape au choix de Charles : déploiement (1.8/1.9) ou phase 3 (terminal).
+  **1.9** (installer les agents). Phase 3 : terminal fait (3.1 à 3.3) ; restent **3.4** (paquets
+  `.deb` + dépôt APT) et **3.5** (release 0.1.0). Voir `ROADMAP.md`, la source de vérité du plan.
 - **Pas encore de release** : la première (0.1.0, `.deb` + dépôt APT signé selon
   `~/.claude/regles/deb-apt.md`) est prévue à la fin de la phase 3 (terminal), pas avant.
 
@@ -27,7 +27,14 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
   `sudo -u ricochet ricochet-serveur compte ajouter <nom>`.
 - `crates/ricochet-agent` : connexion sortante (tokio-tungstenite, rustls), reconnexion 1→60 s,
   300 s après un refus ; état via sysinfo 0.40 (la plupart des fonctions renvoient `Result`).
+- Terminal : agent `terminaux.rs` (portable-pty, un fil de lecture et un d'écriture par terminal,
+  file bornée), relais `terminal.rs` (WebSocket opérateur, `Origin` vérifiée, binaire = octets,
+  texte = taille) ; numéros de terminal attribués par le relais, liés à la session de l'agent.
+  xterm.js 6.0 copié dans `web/vendor/` (provenance et empreintes dans `LISEZMOI.md`) ; la CSP
+  permet `style-src 'unsafe-inline'` pour lui.
 - `crates/ricochet-agent/tests/bout_en_bout.rs` : vrai relais + vrai agent sur 127.0.0.1.
+- Essai de l'interface sans écran : Chromium de Playwright dans `~/.cache/ms-playwright`
+  (`chrome-headless-shell --remote-debugging-pipe`, piloté en CDP par un petit script Python).
 - `deploiement/` : services systemd et vhost nginx (WebSocket, `X-Real-IP`). `exemples/` : configs.
 
 ## Façon de travailler (en plus de `~/.claude/CLAUDE.md`)

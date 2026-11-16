@@ -13,6 +13,7 @@ pub mod totp;
 
 mod agents;
 mod api;
+mod terminal;
 mod web;
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -113,13 +114,14 @@ async fn purger_sessions(relais: Arc<Relais>) {
 }
 
 /// En-têtes ajoutés à toutes les réponses : l'interface ne charge que ses propres fichiers,
-/// ne s'affiche pas dans un cadre, et rien n'est gardé en cache.
+/// ne s'affiche pas dans un cadre, et rien n'est gardé en cache. Seuls les styles en ligne
+/// sont permis, car xterm.js crée ses propres balises `<style>` ; jamais les scripts.
 async fn entetes_de_securite(mut reponse: Response) -> Response {
     let entetes = reponse.headers_mut();
     for (nom, valeur) in [
         (
             header::CONTENT_SECURITY_POLICY,
-            "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; \
+            "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; \
              img-src 'self' data:; manifest-src 'self'; form-action 'self'; \
              frame-ancestors 'none'; base-uri 'none'",
         ),

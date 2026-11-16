@@ -14,6 +14,29 @@ pub struct Config {
     pub id: String,
     /// Jeton secret de la machine.
     pub jeton: String,
+    /// Terminal à distance : désactivé si la section `[terminal]` est absente.
+    #[serde(default)]
+    pub terminal: Option<ConfigTerminal>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigTerminal {
+    /// Commande lancée dans chaque terminal. L'agent tourne en root : pour un shell d'un autre
+    /// utilisateur, `["runuser", "-l", "charles"]`.
+    #[serde(default = "shell_par_defaut")]
+    pub commande: Vec<String>,
+    /// Nombre de terminaux ouverts en même temps.
+    #[serde(default = "maximum_par_defaut")]
+    pub maximum: usize,
+}
+
+fn shell_par_defaut() -> Vec<String> {
+    vec!["/bin/bash".into(), "-l".into()]
+}
+
+fn maximum_par_defaut() -> usize {
+    8
 }
 
 impl Config {
@@ -31,6 +54,13 @@ impl Config {
         if config.id.is_empty() || config.jeton.is_empty() {
             bail!("id et jeton sont obligatoires");
         }
+        if config
+            .terminal
+            .as_ref()
+            .is_some_and(|t| t.commande.is_empty())
+        {
+            bail!("terminal.commande ne peut pas être vide");
+        }
         Ok(config)
     }
 }
@@ -46,6 +76,20 @@ mod tests {
         )
         .unwrap();
         assert_eq!(config.id, "pc");
+        assert!(config.terminal.is_none());
+        let avec = Config::depuis_texte(
+            "relais = \"wss://e.org/agent\"\nid = \"pc\"\njeton = \"x\"\n[terminal]\n",
+        )
+        .unwrap();
+        let terminal = avec.terminal.unwrap();
+        assert_eq!(terminal.commande, ["/bin/bash", "-l"]);
+        assert_eq!(terminal.maximum, 8);
+        assert!(
+            Config::depuis_texte(
+                "relais = \"wss://e.org\"\nid = \"pc\"\njeton = \"x\"\n[terminal]\ncommande = []"
+            )
+            .is_err()
+        );
         assert!(
             Config::depuis_texte("relais = \"https://exemple.org\"\nid = \"pc\"\njeton = \"x\"")
                 .is_err()

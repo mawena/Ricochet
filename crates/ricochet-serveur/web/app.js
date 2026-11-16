@@ -111,7 +111,7 @@ function afficherTableau(compte) {
   chargerMachines();
   clearInterval(minuterie);
   minuterie = setInterval(() => {
-    if (!document.hidden && !$("#onglet-machines").hidden) chargerMachines();
+    if (!document.hidden && !$("#onglet-machines").hidden && !terminal) chargerMachines();
   }, PERIODE_MS);
 }
 
@@ -161,6 +161,11 @@ function carteMachine(m) {
     ? `Connectée ${ilYa(m.connectee_le)} depuis ${m.adresse} · état ${ilYa(m.etat_recu_le)}`
     : `Déconnectée · vue ${ilYa(m.vue_le)}`;
   carte.querySelector(".vu").textContent = vu;
+
+  const boutonTerminal = carte.querySelector(".ouvrir-terminal");
+  boutonTerminal.hidden = !m.info?.terminal;
+  boutonTerminal.disabled = !m.connectee;
+  boutonTerminal.addEventListener("click", () => ouvrirTerminal(m));
 
   const actualiser = carte.querySelector(".actualiser");
   actualiser.disabled = !m.connectee;
@@ -245,6 +250,137 @@ function fermerJeton() {
   $("#copier").textContent = "Copier";
 }
 
+// --- Terminal ---
+// xterm.js n'est chargé qu'à la première ouverture d'un terminal : l'interface reste légère.
+
+const SEQUENCES = {
+  echap: "\x1b", tab: "\t", haut: "\x1b[A", bas: "\x1b[B", droite: "\x1b[C", gauche: "\x1b[D",
+  pipe: "|", tilde: "~", tiret: "-", barre: "/",
+};
+let terminal = null; // { xterm, ajustement, socket, observateur }
+let ctrlActif = false;
+let chargementXterm = null;
+
+function chargerScript(src) {
+  return new Promise((resoudre, rejeter) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resoudre;
+    script.onerror = () => rejeter(new Error(`chargement de ${src} impossible`));
+    document.head.append(script);
+  });
+}
+
+function chargerXterm() {
+  if (!chargementXterm) {
+    const style = document.createElement("link");
+    style.rel = "stylesheet";
+    style.href = "/vendor/xterm.css";
+    document.head.append(style);
+    chargementXterm = Promise.all([
+      chargerScript("/vendor/xterm.js"),
+      chargerScript("/vendor/addon-fit.js"),
+    ]).catch((erreur) => {
+      chargementXterm = null;
+      throw erreur;
+    });
+  }
+  return chargementXterm;
+}
+
+function basculerCtrl(actif) {
+  ctrlActif = actif;
+  $("#touche-ctrl").classList.toggle("actif", actif);
+}
+
+/// Avec Ctrl enfoncé (bouton de l'écran), une lettre devient le caractère de contrôle.
+function appliquerCtrl(donnees) {
+  if (!ctrlActif || donnees.length !== 1) return donnees;
+  basculerCtrl(false);
+  const code = donnees.toUpperCase().charCodeAt(0);
+  return code >= 64 && code <= 95 ? String.fromCharCode(code - 64) : donnees;
+}
+
+function envoyerAuTerminal(texte) {
+  if (terminal?.socket.readyState === WebSocket.OPEN) {
+    terminal.socket.send(new TextEncoder().encode(texte));
+  }
+}
+
+async function ouvrirTerminal(m) {
+  if (terminal) return;
+  try {
+    await chargerXterm();
+  } catch (erreur) {
+    message(erreur.message, true);
+    return;
+  }
+  $("#titre-terminal").textContent = m.nom || m.id;
+  $("#etat-terminal").textContent = "connexion…";
+  $("#ecran-terminal").hidden = false;
+  document.body.classList.add("terminal-ouvert");
+  basculerCtrl(false);
+
+  const xterm = new Terminal({
+    cursorBlink: true,
+    fontFamily: "ui-monospace, 'DejaVu Sans Mono', Menlo, monospace",
+    fontSize: window.innerWidth < 600 ? 13 : 15,
+    scrollback: 5000,
+    theme: { background: "#0b1020" },
+  });
+  const ajustement = new FitAddon.FitAddon();
+  xterm.loadAddon(ajustement);
+  xterm.open($("#terminal"));
+  ajustement.fit();
+
+  const schema = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${schema}://${location.host}/api/machines/${encodeURIComponent(m.id)}/terminal` +
+    `?colonnes=${xterm.cols}&lignes=${xterm.rows}`;
+  const socket = new WebSocket(url);
+  socket.binaryType = "arraybuffer";
+  const observateur = new ResizeObserver(() => ajustement.fit());
+  observateur.observe($("#terminal"));
+  terminal = { xterm, ajustement, socket, observateur };
+
+  socket.onopen = () => {
+    $("#etat-terminal").textContent = "";
+    xterm.focus();
+  };
+  socket.onmessage = (evenement) => {
+    if (evenement.data instanceof ArrayBuffer) xterm.write(new Uint8Array(evenement.data));
+  };
+  socket.onclose = (evenement) => {
+    const raison = evenement.reason || "connexion perdue";
+    $("#etat-terminal").textContent = `fermé : ${raison}`;
+    xterm.write(`\r\n\x1b[90m[terminal fermé : ${raison}]\x1b[0m\r\n`);
+  };
+  xterm.onData((donnees) => envoyerAuTerminal(appliquerCtrl(donnees)));
+  xterm.onResize(({ cols, rows }) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ colonnes: cols, lignes: rows }));
+    }
+  });
+}
+
+function fermerTerminal() {
+  if (!terminal) return;
+  terminal.observateur.disconnect();
+  terminal.socket.onclose = null;
+  terminal.socket.close();
+  terminal.xterm.dispose();
+  terminal = null;
+  $("#ecran-terminal").hidden = true;
+  document.body.classList.remove("terminal-ouvert");
+  chargerMachines();
+}
+
+function toucheEcran(nom) {
+  if (!terminal) return;
+  if (nom === "ctrl") basculerCtrl(!ctrlActif);
+  else envoyerAuTerminal(appliquerCtrl(SEQUENCES[nom]));
+  terminal.xterm.focus();
+}
+
 // --- Journal ---
 
 const ACTIONS = {
@@ -258,6 +394,8 @@ const ACTIONS = {
   agent_connecte: "Agent connecté",
   agent_deconnecte: "Agent déconnecté",
   agent_refuse: "Agent refusé",
+  terminal_ouvert: "Terminal ouvert",
+  terminal_ferme: "Terminal fermé",
   compte_cree: "Compte créé",
   compte_supprime: "Compte supprimé",
 };
@@ -324,6 +462,7 @@ async function seDeconnecter() {
   $("#machines").replaceChildren();
   $("#journal").replaceChildren();
   fermerJeton();
+  fermerTerminal();
   afficherConnexion();
 }
 
@@ -333,6 +472,17 @@ async function demarrer() {
   $("#deconnexion").addEventListener("click", seDeconnecter);
   $("#copier").addEventListener("click", copierConfig);
   $("#fermer-jeton").addEventListener("click", fermerJeton);
+  $("#fermer-terminal").addEventListener("click", fermerTerminal);
+  for (const bouton of document.querySelectorAll("[data-touche]")) {
+    // Garder le focus (et le clavier du téléphone) sur le terminal.
+    bouton.addEventListener("mousedown", (e) => e.preventDefault());
+    bouton.addEventListener("click", () => toucheEcran(bouton.dataset.touche));
+  }
+  window.visualViewport?.addEventListener("resize", () => {
+    // Le clavier du téléphone réduit la zone visible : le terminal s'y adapte.
+    $("#ecran-terminal").style.height = `${window.visualViewport.height}px`;
+    terminal?.ajustement.fit();
+  });
   for (const bouton of document.querySelectorAll("[data-onglet]")) {
     bouton.addEventListener("click", () => changerOnglet(bouton.dataset.onglet));
   }

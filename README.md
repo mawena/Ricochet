@@ -16,8 +16,9 @@ L'opérateur consulte et commande les machines par le relais.
 État actuel : les agents se connectent au relais et envoient l'état de leur machine
 (processeur, charge, mémoire, disques, durée d'allumage). L'opérateur se connecte à l'interface
 web (mot de passe + code TOTP), voit ses machines en ligne ou non, en ajoute ou en révoque, et
-consulte le journal d'audit. Le terminal, les fichiers et le reste sont dans la
-[feuille de route](ROADMAP.md).
+consulte le journal d'audit, et ouvre un **terminal** sur une machine depuis le navigateur
+(xterm.js, avec une barre de touches pour le téléphone : Échap, Tab, Ctrl, flèches). Les
+fichiers et le reste sont dans la [feuille de route](ROADMAP.md).
 
 ## Installation
 
@@ -79,6 +80,19 @@ sudo systemctl enable --now ricochet-agent
 ```
 
 L'agent se reconnecte seul après une coupure (1 s, 2 s, 4 s… jusqu'à une minute).
+
+**Terminal** : désactivé tant que `agent.toml` n'a pas de section `[terminal]`. L'agent tourne en
+root ; pour un shell d'un utilisateur ordinaire :
+
+```toml
+[terminal]
+commande = ["runuser", "-l", "charles"]   # défaut : ["/bin/bash", "-l"], donc root
+maximum = 8                               # terminaux ouverts en même temps
+```
+
+Le bouton « Terminal » n'apparaît que pour les machines qui l'acceptent. Chaque ouverture et
+fermeture est inscrite au journal d'audit ; le terminal se ferme quand la session de
+l'opérateur expire, quand la machine se déconnecte ou quand elle est révoquée.
 `ricochet-agent etat` affiche l'état local tel qu'il serait envoyé.
 
 ### 5. API
@@ -102,9 +116,15 @@ curl -H "Authorization: Bearer <jeton>" https://ricochet.mawena.cloud/api/machin
 | `POST /api/machines` | `{id, nom}` → `201 {id, jeton}` (`409` si l'identifiant existe) |
 | `DELETE /api/machines/{id}` | révoque la machine (`204`, `404`) |
 | `POST /api/machines/{id}/actualiser` | demande un état à jour (`202`, `404` inconnue, `409` déconnectée) |
+| `GET /api/machines/{id}/terminal?colonnes=80&lignes=24` | WebSocket du terminal (voir ci-dessous) |
 | `GET /api/audit?limite=200` | journal d'audit, du plus récent au plus ancien |
 
 Avec le cookie, les requêtes autres que `GET` doivent porter l'en-tête `X-Ricochet: 1`.
+
+WebSocket du terminal : trames binaires = octets tapés (vers la machine) ou affichés (vers le
+navigateur) ; trame texte `{"colonnes": 120, "lignes": 40}` pour redimensionner ; la trame de
+fermeture porte la raison (`fin du shell (code 0)`, `session expirée`…). Un navigateur n'est
+accepté que si son en-tête `Origin` est celui du relais.
 
 ## Configuration
 
@@ -113,7 +133,8 @@ Avec le cookie, les requêtes autres que `GET` doivent porter l'en-tête `X-Rico
 (défaut 12), `cookie_securise` (défaut `true`), `intervalle_etat_s` (défaut 30),
 `jeton_operateur_sha256` (facultatif). Comptes et machines sont dans la base, pas ici.
 
-**Agent** (`agent.toml`) : `relais` (`wss://…/agent`), `id`, `jeton`.
+**Agent** (`agent.toml`, modèle [exemples/agent.toml](exemples/agent.toml)) : `relais`
+(`wss://…/agent`), `id`, `jeton`, section `[terminal]` facultative (`commande`, `maximum`).
 
 Les journaux suivent `RUST_LOG` (défaut `info`).
 
@@ -123,8 +144,8 @@ Les journaux suivent `RUST_LOG` (défaut `info`).
 |---|---|
 | `crates/ricochet-protocole` | messages échangés entre agent et relais (JSON) |
 | `crates/ricochet-serveur` | relais : WebSocket des agents, registre, base SQLite, comptes, TOTP, API |
-| `crates/ricochet-serveur/web` | interface web (HTML, CSS, JavaScript sans dépendance), intégrée au binaire |
-| `crates/ricochet-agent` | agent : connexion, état de la machine, reconnexion ; test de bout en bout |
+| `crates/ricochet-serveur/web` | interface web (HTML, CSS, JavaScript), intégrée au binaire ; `vendor/` : xterm.js 6.0 (MIT) |
+| `crates/ricochet-agent` | agent : connexion, état de la machine, terminaux (PTY), reconnexion ; test de bout en bout |
 | `exemples/` | configurations d'exemple |
 | `deploiement/` | services systemd et configuration nginx |
 

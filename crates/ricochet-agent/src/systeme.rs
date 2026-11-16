@@ -6,13 +6,15 @@ use sysinfo::{Disks, System};
 /// Systèmes de fichiers sans intérêt pour l'espace disque (images montées, mémoire…).
 const SYSTEMES_IGNORES: &[&str] = &["squashfs", "overlay", "tmpfs", "devtmpfs", "efivarfs"];
 
-pub fn info_machine() -> InfoMachine {
+/// `terminal` : l'agent accepte d'ouvrir des terminaux.
+pub fn info_machine(terminal: bool) -> InfoMachine {
     InfoMachine {
         nom_hote: System::host_name().unwrap_or_default(),
         systeme: System::long_os_version().unwrap_or_default(),
         noyau: System::kernel_version().unwrap_or_default(),
         architecture: System::cpu_arch(),
         version_agent: env!("CARGO_PKG_VERSION").to_owned(),
+        terminal,
     }
 }
 
@@ -72,7 +74,8 @@ mod tests {
 
     #[test]
     fn mesures_plausibles() {
-        let info = info_machine();
+        let info = info_machine(true);
+        assert!(info.terminal);
         assert!(!info.nom_hote.is_empty());
         let etat = Collecteur::new().unwrap().etat();
         assert!(etat.nombre_coeurs > 0);
