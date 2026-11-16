@@ -79,8 +79,9 @@ demande le premier code pour vérifier. `compte liste` et `compte supprimer <nom
 ### 3. Se connecter et ajouter les machines
 
 Ouvrir `https://ricochet.mawena.cloud` : compte, mot de passe et code à 6 chiffres.
-« Ajouter une machine » crée son jeton et affiche **une seule fois** la configuration de
-l'agent ; le relais n'en garde que l'empreinte SHA-256. « Révoquer » rend le jeton inutile et
+« Ajouter une machine » crée son jeton et affiche **une seule fois** la commande qui installe
+l'agent sur la machine, écrit sa configuration et le démarre (indiquer un utilisateur pour
+activer le terminal avec son shell) ; le relais n'en garde que l'empreinte SHA-256. « Révoquer » rend le jeton inutile et
 coupe la connexion de l'agent.
 
 Protections : mots de passe en Argon2id ; code TOTP à usage unique (un code déjà servi est
@@ -90,8 +91,9 @@ session `HttpOnly`, `Secure`, `SameSite=Strict` (préfixe `__Host-`), valable 12
 
 ### 4. Lancer un agent (sur chaque machine)
 
-Coller la configuration donnée par l'interface dans `/etc/ricochet/agent.toml`, droits `600`
-(modèle : [exemples/agent.toml](exemples/agent.toml)), puis :
+Le plus simple : coller dans un terminal de la machine la commande donnée par l'interface.
+À la main : installer `ricochet-agent`, écrire la configuration dans `/etc/ricochet/agent.toml`,
+droits `600` (modèle : [exemples/agent.toml](exemples/agent.toml)), puis :
 
 ```sh
 sudo systemctl start ricochet-agent

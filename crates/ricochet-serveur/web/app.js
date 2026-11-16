@@ -209,18 +209,35 @@ async function revoquer(m) {
   }
 }
 
+// Commande à coller sur la nouvelle machine : installe l'agent, écrit sa configuration
+// (droits 600, elle contient le jeton) et le démarre. Une seule liste « && » : le shell lit
+// tout avant de lancer sudo, dont la demande de mot de passe n'avale donc pas la suite.
+function commandeInstallation(relais, cree, utilisateur) {
+  const terminal = utilisateur
+    ? `\n[terminal]\ncommande = ["runuser", "-l", "${utilisateur}"]\nmaximum = 8\n`
+    : "";
+  return (
+    `curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh &&\n` +
+    `sudo install -D -m 600 /dev/null /etc/ricochet/agent.toml &&\n` +
+    `sudo tee /etc/ricochet/agent.toml >/dev/null <<'EOF' &&\n` +
+    `relais = "${relais}"\nid = "${cree.id}"\njeton = "${cree.jeton}"\n${terminal}EOF\n` +
+    `sudo systemctl restart ricochet-agent\n`
+  );
+}
+
 async function ajouterMachine(evenement) {
   evenement.preventDefault();
   const formulaire = evenement.target;
   // `formulaire.id` serait l'attribut id du formulaire : passer par `elements`.
   const id = formulaire.elements.namedItem("id").value.trim();
   const nom = formulaire.elements.namedItem("nom").value.trim();
+  // Le motif du champ ne laisse passer qu'un nom d'utilisateur Unix : rien à échapper.
+  const utilisateur = formulaire.elements.namedItem("utilisateur").value.trim();
   try {
     const cree = await api("POST", "/machines", { id, nom: nom || null });
     const relais = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/agent`;
     $("#nouveau-id").textContent = cree.id;
-    $("#nouvelle-config").textContent =
-      `relais = "${relais}"\nid = "${cree.id}"\njeton = "${cree.jeton}"\n`;
+    $("#nouvelle-config").textContent = commandeInstallation(relais, cree, utilisateur);
     $("#nouveau-jeton").hidden = false;
     formulaire.reset();
     $("#ajout").open = false;

@@ -6,6 +6,14 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.1.2] - 2026-11-16
+
+### Modifié
+
+- « Ajouter une machine » affiche une commande complète à coller sur la machine (installation
+  de l'agent, configuration en droits 600, démarrage) et demande l'utilisateur du terminal,
+  au lieu des seules lignes de configuration.
+
 ## [0.1.1] - 2026-11-16
 
 ### Corrigé
@@ -63,6 +71,7 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
   restent limités aux fichiers du relais.
 
 
-[Non publié]: https://github.com/mawena/Ricochet/compare/v0.1.1...HEAD
+[Non publié]: https://github.com/mawena/Ricochet/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/mawena/Ricochet/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mawena/Ricochet/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mawena/Ricochet/releases/tag/v0.1.0
