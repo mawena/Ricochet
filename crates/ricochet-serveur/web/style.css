@@ -255,3 +255,7 @@ body.terminal-ouvert { overflow: hidden; }
 .entree .nom-entree { overflow-wrap: anywhere; }
 .entree .details { color: var(--doux); font-size: 0.8rem; }
 body.fichiers-ouverts { overflow: hidden; }
+
+#envoyer-fichiers {
+  white-space: nowrap;
+}

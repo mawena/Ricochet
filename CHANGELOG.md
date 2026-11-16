@@ -6,6 +6,14 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.2.1] - 2026-11-16
+
+### Corrigé
+
+- Fichiers : après une erreur (dossier refusé ou introuvable), le champ du chemin revient au
+  dossier affiché, celui où « Envoyer ici » écrit, au lieu de garder le chemin refusé.
+- Fichiers : le bouton « Envoyer ici » ne passe plus sur deux lignes sur un petit écran.
+
 ## [0.2.0] - 2026-11-16
 
 ### Ajouté
@@ -82,7 +90,8 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
   restent limités aux fichiers du relais.
 
 
-[Non publié]: https://github.com/mawena/Ricochet/compare/v0.2.0...HEAD
+[Non publié]: https://github.com/mawena/Ricochet/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/mawena/Ricochet/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mawena/Ricochet/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/mawena/Ricochet/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mawena/Ricochet/compare/v0.1.0...v0.1.1
