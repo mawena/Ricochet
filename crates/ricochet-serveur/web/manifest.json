@@ -1,0 +1,10 @@
+{
+  "name": "Ricochet",
+  "short_name": "Ricochet",
+  "description": "Contrôle à distance de mes machines",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1d4ed8",
+  "icons": [{ "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

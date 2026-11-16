@@ -13,7 +13,7 @@ use ricochet_protocole::{EtatMachine, InfoMachine, RelaisVersAgent};
 use serde::Serialize;
 use tokio::sync::mpsc;
 
-use crate::config::Config;
+use crate::base::MachineDeclaree;
 
 /// Ordre transmis à la tâche qui tient la connexion d'un agent.
 #[derive(Debug)]
@@ -142,11 +142,18 @@ impl Registre {
         })
     }
 
-    /// Toutes les machines de la configuration, dans son ordre, connectées ou non.
-    pub fn liste(&self, config: &Config) -> Vec<VueMachine> {
+    /// Oublie une machine révoquée et ferme sa connexion.
+    pub fn retirer(&self, id: &str) {
+        let machine = self.machines.lock().unwrap().remove(id);
+        if let Some(session) = machine.and_then(|m| m.session) {
+            let _ = session.commandes.try_send(Commande::Remplacer);
+        }
+    }
+
+    /// Les machines déclarées, dans l'ordre donné, connectées ou non.
+    pub fn liste(&self, declarees: &[MachineDeclaree]) -> Vec<VueMachine> {
         let machines = self.machines.lock().unwrap();
-        config
-            .agents
+        declarees
             .iter()
             .map(|agent| {
                 let machine = machines.get(&agent.id);
@@ -181,12 +188,14 @@ mod tests {
         }
     }
 
-    fn config() -> Config {
-        let h = "0".repeat(64);
-        Config::depuis_texte(&format!(
-            "jeton_operateur_sha256 = \"{h}\"\n[[agents]]\nid = \"pc\"\njeton_sha256 = \"{h}\"\n[[agents]]\nid = \"vps\"\njeton_sha256 = \"{h}\"\n"
-        ))
-        .unwrap()
+    fn config() -> Vec<MachineDeclaree> {
+        ["pc", "vps"]
+            .map(|id| MachineDeclaree {
+                id: id.into(),
+                nom: None,
+                creee_le: 0,
+            })
+            .to_vec()
     }
 
     #[test]
@@ -220,6 +229,16 @@ mod tests {
         // L'ancienne session ne doit plus toucher à l'état de la machine.
         registre.fermer_session("pc", premiere);
         assert!(registre.liste(&config())[0].connectee);
+    }
+
+    #[test]
+    fn retrait_ferme_la_connexion() {
+        let registre = Registre::default();
+        let (_n, mut file) = registre.ouvrir_session("pc", info(), "a".into());
+        registre.retirer("pc");
+        assert!(matches!(file.try_recv(), Ok(Commande::Remplacer)));
+        assert!(!registre.liste(&config())[0].connectee);
+        assert!(registre.liste(&config())[0].info.is_none());
     }
 
     #[test]

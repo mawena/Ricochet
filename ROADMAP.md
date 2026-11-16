@@ -23,11 +23,11 @@ Règle : cocher une tâche **dès** qu'elle est terminée.
 - [ ] 1.9 Agents sur le VPS et sur le PC, vérifier qu'ils apparaissent connectés
 
 ## Phase 2 : interface web et accès sécurisé
-- [ ] 2.1 Comptes opérateur : mot de passe (Argon2) et double authentification TOTP
-- [ ] 2.2 Sessions par cookie sécurisé, limitation des essais de connexion
-- [ ] 2.3 Interface web adaptée au téléphone : machines, état, en ligne ou non
-- [ ] 2.4 Ajout d'une machine depuis l'interface : jeton créé et affiché une seule fois, révocation
-- [ ] 2.5 Journal d'audit de toutes les actions
+- [x] 2.1 Comptes opérateur : mot de passe (Argon2) et double authentification TOTP
+- [x] 2.2 Sessions par cookie sécurisé, limitation des essais de connexion
+- [x] 2.3 Interface web adaptée au téléphone : machines, état, en ligne ou non
+- [x] 2.4 Ajout d'une machine depuis l'interface : jeton créé et affiché une seule fois, révocation
+- [x] 2.5 Journal d'audit de toutes les actions
 
 ## Phase 3 : terminal à distance → release 0.1.0
 - [ ] 3.1 Agent : shell dans un pseudo-terminal (PTY), plusieurs sessions, redimensionnement

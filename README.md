@@ -14,8 +14,10 @@ L'opérateur consulte et commande les machines par le relais.
 ```
 
 État actuel : les agents se connectent au relais et envoient l'état de leur machine
-(processeur, charge, mémoire, disques, durée d'allumage) ; l'API liste les machines. Le
-terminal, les fichiers, l'interface web et le reste sont dans la [feuille de route](ROADMAP.md).
+(processeur, charge, mémoire, disques, durée d'allumage). L'opérateur se connecte à l'interface
+web (mot de passe + code TOTP), voit ses machines en ligne ou non, en ajoute ou en révoque, et
+consulte le journal d'audit. Le terminal, les fichiers et le reste sont dans la
+[feuille de route](ROADMAP.md).
 
 ## Installation
 
@@ -30,35 +32,46 @@ sudo install target/release/ricochet-serveur target/release/ricochet-agent /usr/
 
 ## Utilisation
 
-### 1. Créer les jetons
-
-Un jeton pour l'opérateur, un par machine :
+### 1. Lancer le relais (sur le serveur public)
 
 ```sh
-ricochet-serveur jeton
-# jeton     : 3f1c…   → à donner à l'agent (ou à garder pour l'API)
-# empreinte : 9a7b…   → à écrire dans la configuration du relais
-```
-
-Le relais ne connaît que les empreintes : une fuite de sa configuration ne livre aucun jeton.
-
-### 2. Lancer le relais (sur le serveur public)
-
-Configuration dans `/etc/ricochet/serveur.toml` (modèle : [exemples/serveur.toml](exemples/serveur.toml)),
-puis :
-
-```sh
+sudo useradd --system --home-dir /var/lib/ricochet --shell /usr/sbin/nologin ricochet
+sudo install -d -m 755 /etc/ricochet
+sudo install -m 644 exemples/serveur.toml /etc/ricochet/serveur.toml   # à relire
 sudo cp deploiement/ricochet-serveur.service /etc/systemd/system/
 sudo systemctl enable --now ricochet-serveur
 ```
 
-Le relais écoute en local (`127.0.0.1:7870`) ; nginx assure le HTTPS devant lui
+Le relais écoute en local (`127.0.0.1:7870`) et garde ses données dans
+`/var/lib/ricochet/ricochet.db` (SQLite, droits `600`). nginx assure le HTTPS devant lui
 (modèle : [deploiement/nginx-ricochet.conf](deploiement/nginx-ricochet.conf)).
 
-### 3. Lancer un agent (sur chaque machine)
+### 2. Créer un compte opérateur
 
-Configuration dans `/etc/ricochet/agent.toml`, droits `600` (modèle :
-[exemples/agent.toml](exemples/agent.toml)), puis :
+```sh
+sudo -u ricochet ricochet-serveur compte ajouter charles
+```
+
+La commande demande un mot de passe (12 caractères au moins), affiche un QR code à scanner
+avec l'application d'authentification du téléphone (Aegis, Google Authenticator…), puis
+demande le premier code pour vérifier. `compte liste` et `compte supprimer <nom>` complètent.
+
+### 3. Se connecter et ajouter les machines
+
+Ouvrir `https://ricochet.mawena.cloud` : compte, mot de passe et code à 6 chiffres.
+« Ajouter une machine » crée son jeton et affiche **une seule fois** la configuration de
+l'agent ; le relais n'en garde que l'empreinte SHA-256. « Révoquer » rend le jeton inutile et
+coupe la connexion de l'agent.
+
+Protections : mots de passe en Argon2id ; code TOTP à usage unique (un code déjà servi est
+refusé) ; 5 échecs par adresse ou 20 par compte en 15 minutes bloquent les essais ; cookie de
+session `HttpOnly`, `Secure`, `SameSite=Strict` (préfixe `__Host-`), valable 12 h ; en-tête
+`X-Ricochet` exigé contre les requêtes forgées ; politique de sécurité du contenu stricte.
+
+### 4. Lancer un agent (sur chaque machine)
+
+Coller la configuration donnée par l'interface dans `/etc/ricochet/agent.toml`, droits `600`
+(modèle : [exemples/agent.toml](exemples/agent.toml)), puis :
 
 ```sh
 sudo cp deploiement/ricochet-agent.service /etc/systemd/system/
@@ -68,26 +81,37 @@ sudo systemctl enable --now ricochet-agent
 L'agent se reconnecte seul après une coupure (1 s, 2 s, 4 s… jusqu'à une minute).
 `ricochet-agent etat` affiche l'état local tel qu'il serait envoyé.
 
-### 4. Interroger l'API
+### 5. API
+
+L'interface s'appuie sur l'API ; un script peut l'appeler avec un jeton (`ricochet-serveur
+jeton`, empreinte dans `jeton_operateur_sha256`) :
 
 ```sh
-curl -H "Authorization: Bearer <jeton opérateur>" https://ricochet.mawena.cloud/api/machines
-curl -X POST -H "Authorization: Bearer <jeton opérateur>" \
-     https://ricochet.mawena.cloud/api/machines/pc/actualiser
+curl -H "Authorization: Bearer <jeton>" https://ricochet.mawena.cloud/api/machines
 ```
 
 | Route | Rôle |
 |---|---|
-| `GET /sante` | répond `ok` (sans jeton) |
+| `GET /` | interface web |
+| `GET /sante` | répond `ok` (sans connexion) |
 | `GET /agent` | connexion WebSocket des agents |
-| `GET /api/machines` | toutes les machines déclarées, connectées ou non, avec leur dernier état |
+| `POST /api/connexion` | `{nom, mot_de_passe, code}` → cookie de session (`401`, `429` si trop d'essais) |
+| `POST /api/deconnexion` | ferme la session |
+| `GET /api/moi` | compte connecté |
+| `GET /api/machines` | machines déclarées, connectées ou non, avec leur dernier état |
+| `POST /api/machines` | `{id, nom}` → `201 {id, jeton}` (`409` si l'identifiant existe) |
+| `DELETE /api/machines/{id}` | révoque la machine (`204`, `404`) |
 | `POST /api/machines/{id}/actualiser` | demande un état à jour (`202`, `404` inconnue, `409` déconnectée) |
+| `GET /api/audit?limite=200` | journal d'audit, du plus récent au plus ancien |
+
+Avec le cookie, les requêtes autres que `GET` doivent porter l'en-tête `X-Ricochet: 1`.
 
 ## Configuration
 
-**Relais** (`serveur.toml`) : `ecoute` (défaut `127.0.0.1:7870`), `jeton_operateur_sha256`,
-`intervalle_etat_s` (défaut 30), et un bloc `[[agents]]` par machine (`id`, `nom` facultatif,
-`jeton_sha256`).
+**Relais** (`serveur.toml`, modèle [exemples/serveur.toml](exemples/serveur.toml)) : `ecoute`
+(défaut `127.0.0.1:7870`), `base` (défaut `/var/lib/ricochet/ricochet.db`), `duree_session_h`
+(défaut 12), `cookie_securise` (défaut `true`), `intervalle_etat_s` (défaut 30),
+`jeton_operateur_sha256` (facultatif). Comptes et machines sont dans la base, pas ici.
 
 **Agent** (`agent.toml`) : `relais` (`wss://…/agent`), `id`, `jeton`.
 
@@ -98,7 +122,8 @@ Les journaux suivent `RUST_LOG` (défaut `info`).
 | Chemin | Contenu |
 |---|---|
 | `crates/ricochet-protocole` | messages échangés entre agent et relais (JSON) |
-| `crates/ricochet-serveur` | relais : WebSocket des agents, registre, API, jetons |
+| `crates/ricochet-serveur` | relais : WebSocket des agents, registre, base SQLite, comptes, TOTP, API |
+| `crates/ricochet-serveur/web` | interface web (HTML, CSS, JavaScript sans dépendance), intégrée au binaire |
 | `crates/ricochet-agent` | agent : connexion, état de la machine, reconnexion ; test de bout en bout |
 | `exemples/` | configurations d'exemple |
 | `deploiement/` | services systemd et configuration nginx |

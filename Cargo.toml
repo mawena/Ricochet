@@ -29,6 +29,13 @@ sha2 = "0.11"
 hex = "0.4"
 subtle = "2.6"
 tower = { version = "0.5", features = ["util"] }
+rusqlite = { version = "0.43", features = ["bundled", "fallible_uint"] }
+argon2 = "0.6"
+hmac = "0.13"
+sha1 = "0.11"
+data-encoding = "2.11"
+qrcode = { version = "0.14", default-features = false }
+rpassword = "7.5"
 
 [profile.release]
 lto = "thin"
