@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ricochet, contrôle à distance de vos machines, même sans IP publique</title>
-<meta name="description" content="Ricochet commande vos machines Linux à distance depuis un navigateur, même derrière une box : état, terminal, journal d'audit. Relais et agent en Rust, installation par apt sur Ubuntu.">
+<meta name="description" content="Ricochet commande vos machines Linux à distance depuis un navigateur, même derrière une box : état, terminal, fichiers, journal d'audit. Relais et agent en Rust, installation par apt sur Ubuntu.">
 <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1b1814" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icone.svg" type="image/svg+xml">
@@ -57,12 +57,16 @@
         <p>Un vrai shell (xterm.js), redimensionnable, avec une barre de touches pour le téléphone : Échap, Tab, Ctrl, flèches.</p>
       </article>
       <article>
+        <h3>Les fichiers</h3>
+        <p>Parcourir les dossiers, télécharger et envoyer des fichiers de toute taille, par morceaux : un envoi coupé reprend où il s'était arrêté.</p>
+      </article>
+      <article>
         <h3>Protégé</h3>
         <p>Mot de passe Argon2id et code TOTP, jetons de machine révocables, en-têtes contre les requêtes forgées, politique de sécurité stricte.</p>
       </article>
       <article>
         <h3>Tout est noté</h3>
-        <p>Connexions, machines ajoutées ou révoquées, terminaux ouverts et fermés : un journal d'audit consultable dans l'interface.</p>
+        <p>Connexions, machines ajoutées ou révoquées, terminaux ouverts et fermés, fichiers échangés : un journal d'audit consultable dans l'interface.</p>
       </article>
       <article>
         <h3>Léger</h3>

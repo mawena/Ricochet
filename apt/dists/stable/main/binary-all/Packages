@@ -52,3 +52,21 @@ Description: dépôt APT de Ricochet
  dépôt de Ricochet, pour que « apt upgrade » apporte les nouvelles versions
  du relais et de l'agent.
 
+Package: ricochet-depot
+Version: 0.2.0
+Architecture: all
+Maintainer: mawena <57989130+mawena@users.noreply.github.com>
+Installed-Size: 64
+Filename: pool/main/ricochet-depot_0.2.0_all.deb
+Size: 2740
+MD5sum: 72e3c5450bbe5f4f3069be939bfc3f75
+SHA1: d301362b6d05230562d2452af6d29df329b26bc8
+SHA256: 62c5b1f7a87d12b322ee0d5a012aba32134dc16c8ae824a808e27927400ee971
+Section: admin
+Priority: optional
+Homepage: https://mawena.github.io/Ricochet/
+Description: dépôt APT de Ricochet
+ Source APT (https://mawena.github.io/Ricochet/apt) et clé de signature du
+ dépôt de Ricochet, pour que « apt upgrade » apporte les nouvelles versions
+ du relais et de l'agent.
+
