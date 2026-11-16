@@ -5,6 +5,7 @@
 
 pub mod config;
 pub mod connexion;
+pub mod fichiers;
 pub mod systeme;
 pub mod terminaux;
 

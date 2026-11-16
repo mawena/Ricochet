@@ -31,7 +31,7 @@ const DELAI_SILENCE: Duration = Duration::from_secs(60);
 /// terminal est fermé plutôt que de bloquer toute la connexion de l'agent.
 const DELAI_TERMINAL: Duration = Duration::from_secs(5);
 /// Taille maximale d'un message d'agent.
-const TAILLE_MAX: usize = 1 << 20;
+const TAILLE_MAX: usize = 2 << 20;
 
 pub async fn connexion(
     ws: WebSocketUpgrade,
@@ -177,6 +177,9 @@ async fn boucle(
                         }
                         Ok(AgentVersRelais::TerminalFerme { terminal, raison }) => {
                             relais.registre.terminal_ferme(id, numero, terminal, raison);
+                        }
+                        Ok(AgentVersRelais::Fichiers { requete, reponse }) => {
+                            relais.registre.reponse_fichiers(id, numero, requete, reponse);
                         }
                         Ok(AgentVersRelais::Bonjour { .. }) => {
                             tracing::warn!("agent « {id} » : second bonjour ignoré");

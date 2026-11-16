@@ -18,9 +18,10 @@ L'opérateur consulte et commande les machines par le relais.
 État actuel : les agents se connectent au relais et envoient l'état de leur machine
 (processeur, charge, mémoire, disques, durée d'allumage). L'opérateur se connecte à l'interface
 web (mot de passe + code TOTP), voit ses machines en ligne ou non, en ajoute ou en révoque, et
-consulte le journal d'audit, et ouvre un **terminal** sur une machine depuis le navigateur
-(xterm.js, avec une barre de touches pour le téléphone : Échap, Tab, Ctrl, flèches). Les
-fichiers et le reste sont dans la [feuille de route](ROADMAP.md).
+consulte le journal d'audit, ouvre un **terminal** sur une machine depuis le navigateur
+(xterm.js, avec une barre de touches pour le téléphone : Échap, Tab, Ctrl, flèches) et gère ses
+**fichiers** (parcourir, télécharger, envoyer avec reprise). La suite est dans la
+[feuille de route](ROADMAP.md).
 
 ## Installation
 
@@ -81,7 +82,7 @@ demande le premier code pour vérifier. `compte liste` et `compte supprimer <nom
 Ouvrir `https://ricochet.mawena.cloud` : compte, mot de passe et code à 6 chiffres.
 « Ajouter une machine » crée son jeton et affiche **une seule fois** la commande qui installe
 l'agent sur la machine, écrit sa configuration et le démarre (indiquer un utilisateur pour
-activer le terminal avec son shell) ; le relais n'en garde que l'empreinte SHA-256. « Révoquer » rend le jeton inutile et
+activer le terminal avec son shell et les fichiers avec ses droits) ; le relais n'en garde que l'empreinte SHA-256. « Révoquer » rend le jeton inutile et
 coupe la connexion de l'agent.
 
 Protections : mots de passe en Argon2id ; code TOTP à usage unique (un code déjà servi est
@@ -117,6 +118,19 @@ fermeture est inscrite au journal d'audit ; le terminal se ferme quand la sessio
 l'opérateur expire, quand la machine se déconnecte ou quand elle est révoquée.
 `ricochet-agent etat` affiche l'état local tel qu'il serait envoyé.
 
+**Fichiers** : désactivés tant que `agent.toml` n'a pas de section `[fichiers]`.
+
+```toml
+[fichiers]
+utilisateur = "charles"   # droits de cet utilisateur ; sans : root
+```
+
+Le fil de l'agent qui touche aux fichiers prend les droits de l'utilisateur (fsuid, fsgid et
+groupes) : il ne lit et n'écrit que ce que l'utilisateur pourrait, et les fichiers reçus lui
+appartiennent. Le bouton « Fichiers » ouvre le dossier personnel ; un fichier reçu est écrit
+dans `<nom>.ricochet-partiel` puis renommé à la fin, et un envoi interrompu reprend où il s'est
+arrêté (renvoyer le même fichier).
+
 ### 5. API
 
 L'interface s'appuie sur l'API ; un script peut l'appeler avec un jeton (`ricochet-serveur
@@ -139,6 +153,10 @@ curl -H "Authorization: Bearer <jeton>" https://ricochet.mawena.cloud/api/machin
 | `DELETE /api/machines/{id}` | révoque la machine (`204`, `404`) |
 | `POST /api/machines/{id}/actualiser` | demande un état à jour (`202`, `404` inconnue, `409` déconnectée) |
 | `GET /api/machines/{id}/terminal?colonnes=80&lignes=24` | WebSocket du terminal (voir ci-dessous) |
+| `GET /api/machines/{id}/fichiers?chemin=~` | contenu d'un dossier `{chemin, entrees, tronque}` (`403` fichiers désactivés, `409` déconnectée, `422` erreur de la machine) |
+| `GET /api/machines/{id}/fichiers/telecharger?chemin=…` | le fichier (`Range: bytes=N-` pour reprendre) |
+| `PUT /api/machines/{id}/fichiers?chemin=…&decalage=N&fin=true` | corps = morceau de 512 Kio au plus → `{taille}` du fichier partiel |
+| `GET /api/machines/{id}/fichiers/partiel?chemin=…` | `{taille}` déjà reçue, pour reprendre un envoi |
 | `GET /api/audit?limite=200` | journal d'audit, du plus récent au plus ancien |
 
 Avec le cookie, les requêtes autres que `GET` doivent porter l'en-tête `X-Ricochet: 1`.
@@ -156,7 +174,7 @@ accepté que si son en-tête `Origin` est celui du relais.
 `jeton_operateur_sha256` (facultatif). Comptes et machines sont dans la base, pas ici.
 
 **Agent** (`agent.toml`, modèle [exemples/agent.toml](exemples/agent.toml)) : `relais`
-(`wss://…/agent`), `id`, `jeton`, section `[terminal]` facultative (`commande`, `maximum`).
+(`wss://…/agent`), `id`, `jeton`, sections `[terminal]` (`commande`, `maximum`) et `[fichiers]` (`utilisateur`) facultatives.
 
 Les journaux suivent `RUST_LOG` (défaut `info`).
 
@@ -167,7 +185,7 @@ Les journaux suivent `RUST_LOG` (défaut `info`).
 | `crates/ricochet-protocole` | messages échangés entre agent et relais (JSON) |
 | `crates/ricochet-serveur` | relais : WebSocket des agents, registre, base SQLite, comptes, TOTP, API |
 | `crates/ricochet-serveur/web` | interface web (HTML, CSS, JavaScript), intégrée au binaire ; `vendor/` : xterm.js 6.0 (MIT) |
-| `crates/ricochet-agent` | agent : connexion, état de la machine, terminaux (PTY), reconnexion ; test de bout en bout |
+| `crates/ricochet-agent` | agent : connexion, état de la machine, terminaux (PTY), fichiers, reconnexion ; test de bout en bout |
 | `exemples/` | configurations d'exemple |
 | `deploiement/` | services systemd et configuration nginx |
 | `paquets/` | scripts de maintenance des `.deb` ; `apt/` : clé et source du dépôt APT (`LISEZMOI`) |

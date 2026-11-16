@@ -6,6 +6,17 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.2.0] - 2026-11-16
+
+### Ajouté
+
+- Fichiers : bouton « Fichiers » sur les machines qui l'acceptent (section `[fichiers]` de
+  l'agent) pour parcourir les dossiers, télécharger un fichier (reprise par l'en-tête
+  `Range`) et en envoyer, par morceaux de 512 Kio : un envoi interrompu reprend où il s'est
+  arrêté. Avec `utilisateur = "…"`, l'agent n'a sur les fichiers que les droits de cet
+  utilisateur (fsuid propre au fil des fichiers). Téléchargements et envois au journal d'audit.
+- « Ajouter une machine » active aussi les fichiers quand un utilisateur est indiqué.
+
 ## [0.1.2] - 2026-11-16
 
 ### Modifié
@@ -71,7 +82,8 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
   restent limités aux fichiers du relais.
 
 
-[Non publié]: https://github.com/mawena/Ricochet/compare/v0.1.2...HEAD
+[Non publié]: https://github.com/mawena/Ricochet/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mawena/Ricochet/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/mawena/Ricochet/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mawena/Ricochet/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mawena/Ricochet/releases/tag/v0.1.0

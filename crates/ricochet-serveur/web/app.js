@@ -19,7 +19,10 @@ async function api(methode, chemin, corps) {
     credentials: "same-origin",
     headers: { "X-Ricochet": "1" },
   };
-  if (corps !== undefined) {
+  if (corps instanceof Blob) {
+    options.headers["Content-Type"] = "application/octet-stream";
+    options.body = corps;
+  } else if (corps !== undefined) {
     options.headers["Content-Type"] = "application/json";
     options.body = JSON.stringify(corps);
   }
@@ -111,7 +114,9 @@ function afficherTableau(compte) {
   chargerMachines();
   clearInterval(minuterie);
   minuterie = setInterval(() => {
-    if (!document.hidden && !$("#onglet-machines").hidden && !terminal) chargerMachines();
+    if (!document.hidden && !$("#onglet-machines").hidden && !terminal && !fichiers) {
+      chargerMachines();
+    }
   }, PERIODE_MS);
 }
 
@@ -166,6 +171,10 @@ function carteMachine(m) {
   boutonTerminal.hidden = !m.info?.terminal;
   boutonTerminal.disabled = !m.connectee;
   boutonTerminal.addEventListener("click", () => ouvrirTerminal(m));
+  const boutonFichiers = carte.querySelector(".ouvrir-fichiers");
+  boutonFichiers.hidden = !m.info?.fichiers;
+  boutonFichiers.disabled = !m.connectee;
+  boutonFichiers.addEventListener("click", () => ouvrirFichiers(m));
 
   const actualiser = carte.querySelector(".actualiser");
   actualiser.disabled = !m.connectee;
@@ -214,7 +223,8 @@ async function revoquer(m) {
 // tout avant de lancer sudo, dont la demande de mot de passe n'avale donc pas la suite.
 function commandeInstallation(relais, cree, utilisateur) {
   const terminal = utilisateur
-    ? `\n[terminal]\ncommande = ["runuser", "-l", "${utilisateur}"]\nmaximum = 8\n`
+    ? `\n[terminal]\ncommande = ["runuser", "-l", "${utilisateur}"]\nmaximum = 8\n` +
+      `\n[fichiers]\nutilisateur = "${utilisateur}"\n`
     : "";
   return (
     `curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh &&\n` +
@@ -398,6 +408,139 @@ function toucheEcran(nom) {
   terminal.xterm.focus();
 }
 
+// --- Fichiers ---
+// Les envois partent par morceaux ; un envoi interrompu reprend où il s'est arrêté.
+const MORCEAU = 512 * 1024;
+let fichiers = null; // { machine, chemin, noms, occupe }
+
+const urlFichiers = (id) => `/machines/${encodeURIComponent(id)}/fichiers`;
+const joindre = (dossier, nom) => (dossier.endsWith("/") ? dossier : dossier + "/") + nom;
+const parent = (chemin) => chemin.replace(/\/[^/]*\/?$/, "") || "/";
+
+function etatFichiers(texte, erreur = false) {
+  $("#etat-fichiers").textContent = texte;
+  $("#etat-fichiers").classList.toggle("erreur", erreur);
+}
+
+function dateFichier(instant) {
+  return new Date(instant * 1000).toLocaleString("fr-FR", {
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function ouvrirFichiers(m) {
+  fichiers = { machine: m, chemin: "~", noms: new Set(), occupe: false };
+  $("#titre-fichiers").textContent = `Fichiers · ${m.nom || m.id}`;
+  $("#liste-fichiers").replaceChildren();
+  $("#ecran-fichiers").hidden = false;
+  document.body.classList.add("fichiers-ouverts");
+  chargerDossier("~");
+}
+
+function fermerFichiers() {
+  if (!fichiers) return;
+  fichiers = null;
+  $("#ecran-fichiers").hidden = true;
+  document.body.classList.remove("fichiers-ouverts");
+}
+
+function ligneEntree(e, dossier, url) {
+  const dossierCible = e.genre === "dossier";
+  const chemin = joindre(dossier, e.nom);
+  let entree;
+  if (dossierCible) {
+    entree = element("button", "entree");
+    entree.type = "button";
+    entree.addEventListener("click", () => chargerDossier(chemin));
+  } else {
+    entree = element("a", "entree");
+    entree.href = `/api${url}/telecharger?chemin=${encodeURIComponent(chemin)}`;
+    entree.download = e.nom;
+  }
+  const icone = dossierCible ? "📁" : e.genre === "fichier" ? "📄" : "◽";
+  const details = [dossierCible ? null : octets(e.taille), e.modifie_le ? dateFichier(e.modifie_le) : null]
+    .filter(Boolean)
+    .join(" · ");
+  entree.append(
+    element("span", "icone", e.lien ? "🔗" : icone),
+    element("span", "nom-entree", e.nom),
+    element("span", "details", details),
+  );
+  const ligne = element("li");
+  ligne.append(entree);
+  return ligne;
+}
+
+async function chargerDossier(chemin) {
+  if (!fichiers) return;
+  const session = fichiers;
+  const url = urlFichiers(session.machine.id);
+  etatFichiers("Chargement…");
+  try {
+    const d = await api("GET", `${url}?chemin=${encodeURIComponent(chemin)}`);
+    if (fichiers !== session) return;
+    session.chemin = d.chemin;
+    session.noms = new Set(d.entrees.map((e) => e.nom));
+    $("#chemin-fichiers").value = d.chemin;
+    $("#liste-fichiers").replaceChildren(...d.entrees.map((e) => ligneEntree(e, d.chemin, url)));
+    $("#liste-fichiers").scrollTop = 0;
+    const n = d.entrees.length;
+    etatFichiers(d.tronque ? `${n} premiers éléments seulement` : `${n} élément${n > 1 ? "s" : ""}`);
+  } catch (erreur) {
+    if (fichiers === session) etatFichiers(erreur.message, true);
+  }
+}
+
+async function envoyerFichier(session, f) {
+  const url = urlFichiers(session.machine.id);
+  const cible = joindre(session.chemin, f.name);
+  const parametres = (decalage, fin) =>
+    `${url}?chemin=${encodeURIComponent(cible)}&decalage=${decalage}&fin=${fin}`;
+  if (session.noms.has(f.name) && !confirm(`Remplacer « ${f.name} » ?`)) return false;
+  let decalage = 0;
+  const partiel = await api("GET", `${url}/partiel?chemin=${encodeURIComponent(cible)}`);
+  if (partiel.taille > 0 && partiel.taille < f.size &&
+      confirm(`Reprendre l'envoi de « ${f.name} » à ${octets(partiel.taille)} ?`)) {
+    decalage = partiel.taille;
+  }
+  for (;;) {
+    const morceau = f.slice(decalage, decalage + MORCEAU);
+    const attendu = decalage + morceau.size;
+    const fin = attendu >= f.size;
+    const r = await api("PUT", parametres(decalage, fin), morceau);
+    if (r.taille > f.size) throw new Error(`« ${f.name} » : fichier partiel plus gros que l'original`);
+    if (fin && r.taille === attendu) return true;
+    // Morceau accepté : on continue ; sinon l'agent dit où reprendre.
+    decalage = r.taille;
+    const pourcent = f.size ? Math.floor((100 * decalage) / f.size) : 100;
+    etatFichiers(`Envoi de « ${f.name} » : ${pourcent} %`);
+  }
+}
+
+async function envoyerFichiers(liste) {
+  if (!fichiers || fichiers.occupe || !liste.length) return;
+  const session = fichiers;
+  session.occupe = true;
+  $("#envoyer-fichiers").disabled = true;
+  let envoyes = 0;
+  try {
+    for (const f of liste) {
+      etatFichiers(`Envoi de « ${f.name} »…`);
+      if (await envoyerFichier(session, f)) envoyes += 1;
+      if (fichiers !== session) return;
+    }
+    await chargerDossier(session.chemin);
+    etatFichiers(`${envoyes} fichier${envoyes > 1 ? "s" : ""} envoyé${envoyes > 1 ? "s" : ""}`);
+  } catch (erreur) {
+    if (fichiers === session) {
+      etatFichiers(`Envoi interrompu (${erreur.message}) : renvoyer le fichier pour reprendre`, true);
+    }
+  } finally {
+    session.occupe = false;
+    $("#envoyer-fichiers").disabled = false;
+  }
+}
+
 // --- Journal ---
 
 const ACTIONS = {
@@ -413,6 +556,8 @@ const ACTIONS = {
   agent_refuse: "Agent refusé",
   terminal_ouvert: "Terminal ouvert",
   terminal_ferme: "Terminal fermé",
+  fichier_recu: "Fichier envoyé sur la machine",
+  fichier_telecharge: "Fichier téléchargé",
   compte_cree: "Compte créé",
   compte_supprime: "Compte supprimé",
 };
@@ -480,6 +625,7 @@ async function seDeconnecter() {
   $("#journal").replaceChildren();
   fermerJeton();
   fermerTerminal();
+  fermerFichiers();
   afficherConnexion();
 }
 
@@ -490,6 +636,20 @@ async function demarrer() {
   $("#copier").addEventListener("click", copierConfig);
   $("#fermer-jeton").addEventListener("click", fermerJeton);
   $("#fermer-terminal").addEventListener("click", fermerTerminal);
+  $("#fermer-fichiers").addEventListener("click", fermerFichiers);
+  $("#parent-fichiers").addEventListener("click", () => {
+    if (fichiers) chargerDossier(parent(fichiers.chemin));
+  });
+  $("#aller-fichiers").addEventListener("submit", (e) => {
+    e.preventDefault();
+    chargerDossier($("#chemin-fichiers").value.trim());
+  });
+  $("#envoyer-fichiers").addEventListener("click", () => $("#choix-fichiers").click());
+  $("#choix-fichiers").addEventListener("change", (e) => {
+    const choisis = [...e.target.files];
+    e.target.value = "";
+    envoyerFichiers(choisis);
+  });
   for (const bouton of document.querySelectorAll("[data-touche]")) {
     // Garder le focus (et le clavier du téléphone) sur le terminal.
     bouton.addEventListener("mousedown", (e) => e.preventDefault());

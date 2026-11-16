@@ -20,7 +20,7 @@ Règle : cocher une tâche **dès** qu'elle est terminée.
 - [x] 1.6 Test de bout en bout (vrai relais, vrai agent)
 - [x] 1.7 Services systemd et configuration nginx d'exemple
 - [x] 1.8 Déployer le relais sur le VPS (`ricochet.mawena.cloud`, DNS + certificat + nginx) — commandes `sudo` par Charles
-- [ ] 1.9 Agents sur le VPS et sur le PC, vérifier qu'ils apparaissent connectés
+- [x] 1.9 Agents sur le VPS et sur le PC, vérifier qu'ils apparaissent connectés
 
 ## Phase 2 : interface web et accès sécurisé
 - [x] 2.1 Comptes opérateur : mot de passe (Argon2) et double authentification TOTP
@@ -36,9 +36,9 @@ Règle : cocher une tâche **dès** qu'elle est terminée.
 - [x] 3.4 Paquets `.deb` (`ricochet-serveur`, `ricochet-agent`) et dépôt APT signé (voir Gagarine)
 - [x] 3.5 Release 0.1.0
 
-## Phase 4 : fichiers
-- [ ] 4.1 Parcourir les dossiers d'une machine
-- [ ] 4.2 Envoyer et recevoir des fichiers, par morceaux, avec reprise
+## Phase 4 : fichiers → release 0.2.0
+- [x] 4.1 Parcourir les dossiers d'une machine
+- [x] 4.2 Envoyer et recevoir des fichiers, par morceaux, avec reprise
 
 ## Phase 5 : supervision et actions rapides
 - [ ] 5.1 Services systemd : liste, état, démarrer, arrêter, redémarrer
