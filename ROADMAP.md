@@ -36,9 +36,9 @@ Règle : cocher une tâche **dès** qu'elle est terminée.
 - [x] 3.4 Paquets `.deb` (`ricochet-serveur`, `ricochet-agent`) et dépôt APT signé (voir Gagarine)
 - [x] 3.5 Release 0.1.0
 
-## Phase 4 : fichiers
-- [ ] 4.1 Parcourir les dossiers d'une machine
-- [ ] 4.2 Envoyer et recevoir des fichiers, par morceaux, avec reprise
+## Phase 4 : fichiers → release 0.2.0
+- [x] 4.1 Parcourir les dossiers d'une machine
+- [x] 4.2 Envoyer et recevoir des fichiers, par morceaux, avec reprise
 
 ## Phase 5 : supervision et actions rapides
 - [ ] 5.1 Services systemd : liste, état, démarrer, arrêter, redémarrer

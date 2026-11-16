@@ -9,9 +9,12 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use ricochet_protocole::{EtatMachine, InfoMachine, NumeroTerminal, RelaisVersAgent};
+use ricochet_protocole::{
+    EtatMachine, InfoMachine, NumeroRequete, NumeroTerminal, OrdreFichiers, RelaisVersAgent,
+    ReponseFichiers,
+};
 use serde::Serialize;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::base::MachineDeclaree;
 
@@ -40,6 +43,15 @@ pub struct Registre {
     compteur: AtomicU64,
     terminaux: Mutex<HashMap<NumeroTerminal, TerminalOuvert>>,
     compteur_terminaux: AtomicU32,
+    requetes: Mutex<HashMap<NumeroRequete, Attente>>,
+    compteur_requetes: AtomicU64,
+}
+
+/// Une requête de fichiers dont la réponse est attendue de la session d'un agent.
+struct Attente {
+    machine: String,
+    session: u64,
+    reponse: oneshot::Sender<ReponseFichiers>,
 }
 
 /// Un terminal appartient à une session d'agent : seule celle-ci peut y écrire.
@@ -89,6 +101,8 @@ pub enum ErreurEnvoi {
     SansTerminal,
     /// Trop de terminaux ouverts sur cette machine.
     TropDeTerminaux,
+    /// L'agent ne donne pas accès à ses fichiers.
+    SansFichiers,
 }
 
 pub fn maintenant() -> u64 {
@@ -146,6 +160,10 @@ impl Registre {
             .lock()
             .unwrap()
             .retain(|_, t| !(t.machine == id && t.session == numero));
+        self.requetes
+            .lock()
+            .unwrap()
+            .retain(|_, r| !(r.machine == id && r.session == numero));
     }
 
     fn modifier(&self, id: &str, numero: u64, action: impl FnOnce(&mut Machine)) {
@@ -186,6 +204,66 @@ impl Registre {
             .lock()
             .unwrap()
             .retain(|_, t| t.machine != id);
+        self.requetes.lock().unwrap().retain(|_, r| r.machine != id);
+    }
+
+    /// Envoie un ordre sur les fichiers à la machine ; la réponse arrivera dans le récepteur
+    /// renvoyé (fermé sans réponse si la session de l'agent se termine avant).
+    pub fn demander_fichiers(
+        &self,
+        id: &str,
+        ordre: OrdreFichiers,
+    ) -> Result<(NumeroRequete, oneshot::Receiver<ReponseFichiers>), ErreurEnvoi> {
+        let machines = self.machines.lock().unwrap();
+        let machine = machines.get(id).ok_or(ErreurEnvoi::Deconnectee)?;
+        let session = machine.session.as_ref().ok_or(ErreurEnvoi::Deconnectee)?;
+        if !machine.info.as_ref().is_some_and(|i| i.fichiers) {
+            return Err(ErreurEnvoi::SansFichiers);
+        }
+        let requete = self.compteur_requetes.fetch_add(1, Ordering::Relaxed) + 1;
+        session
+            .commandes
+            .try_send(Commande::Envoyer(RelaisVersAgent::Fichiers {
+                requete,
+                ordre,
+            }))
+            .map_err(|e| match e {
+                mpsc::error::TrySendError::Full(_) => ErreurEnvoi::Saturee,
+                mpsc::error::TrySendError::Closed(_) => ErreurEnvoi::Deconnectee,
+            })?;
+        let (envoi, reception) = oneshot::channel();
+        self.requetes.lock().unwrap().insert(
+            requete,
+            Attente {
+                machine: id.to_owned(),
+                session: session.numero,
+                reponse: envoi,
+            },
+        );
+        Ok((requete, reception))
+    }
+
+    /// Transmet la réponse d'un agent, si la requête vient bien de sa session.
+    pub fn reponse_fichiers(
+        &self,
+        id: &str,
+        session: u64,
+        requete: NumeroRequete,
+        reponse: ReponseFichiers,
+    ) {
+        let mut requetes = self.requetes.lock().unwrap();
+        if requetes
+            .get(&requete)
+            .is_some_and(|r| r.machine == id && r.session == session)
+            && let Some(attente) = requetes.remove(&requete)
+        {
+            let _ = attente.reponse.send(reponse);
+        }
+    }
+
+    /// Oublie une requête restée sans réponse.
+    pub fn oublier_requete(&self, requete: NumeroRequete) {
+        self.requetes.lock().unwrap().remove(&requete);
     }
 
     /// Ouvre un terminal sur la machine : l'ordre part à l'agent, et sa sortie arrivera dans
@@ -298,6 +376,7 @@ mod tests {
             architecture: "a".into(),
             version_agent: "v".into(),
             terminal: true,
+            fichiers: true,
         }
     }
 
@@ -431,6 +510,44 @@ mod tests {
         );
         registre.retirer("vps");
         assert_eq!(registre.fermer_terminal(ouverts[0].0), None);
+    }
+
+    #[test]
+    fn requetes_de_fichiers() {
+        let registre = Registre::default();
+        let ordre = || OrdreFichiers::Lister { chemin: "/".into() };
+        assert_eq!(
+            registre.demander_fichiers("pc", ordre()).unwrap_err(),
+            ErreurEnvoi::Deconnectee
+        );
+        let mut sans = info();
+        sans.fichiers = false;
+        let (_s, _f) = registre.ouvrir_session("vps", sans, "a".into());
+        assert_eq!(
+            registre.demander_fichiers("vps", ordre()).unwrap_err(),
+            ErreurEnvoi::SansFichiers
+        );
+
+        let (session, mut file) = registre.ouvrir_session("pc", info(), "b".into());
+        let (requete, mut reponse) = registre.demander_fichiers("pc", ordre()).unwrap();
+        assert!(matches!(
+            file.try_recv(),
+            Ok(Commande::Envoyer(RelaisVersAgent::Fichiers { requete: r, .. })) if r == requete
+        ));
+        let ok = ReponseFichiers::Ecrit { taille: 1 };
+        // Une autre machine ne peut pas répondre à la place.
+        registre.reponse_fichiers("vps", 1, requete, ok.clone());
+        assert!(reponse.try_recv().is_err());
+        registre.reponse_fichiers("pc", session, requete, ok.clone());
+        assert_eq!(reponse.try_recv().unwrap(), ok);
+
+        // La fin de la session abandonne les requêtes en cours.
+        let (_r, mut reponse) = registre.demander_fichiers("pc", ordre()).unwrap();
+        registre.fermer_session("pc", session);
+        assert!(matches!(
+            reponse.try_recv(),
+            Err(oneshot::error::TryRecvError::Closed)
+        ));
     }
 
     #[test]

@@ -9,3 +9,9 @@ jeton = "remplacer-par-le-jeton"
 # [terminal]
 # commande = ["runuser", "-l", "charles"]
 # maximum = 8
+
+# Fichiers (parcourir, télécharger, envoyer) : retirer les « # » pour les activer. Avec
+# `utilisateur`, l'agent n'a sur les fichiers que les droits de cet utilisateur, et les fichiers
+# reçus lui appartiennent ; sans, il agit en root.
+# [fichiers]
+# utilisateur = "charles"

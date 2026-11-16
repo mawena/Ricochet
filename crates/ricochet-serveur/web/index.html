@@ -60,7 +60,7 @@
             <label>Nom affiché (facultatif)
               <input name="nom" maxlength="100" placeholder="PC du bureau">
             </label>
-            <label>Terminal : utilisateur de la machine (vide = pas de terminal)
+            <label>Terminal et fichiers : utilisateur de la machine (vide = ni l'un ni l'autre)
               <input name="utilisateur" pattern="[a-z_][a-z0-9_\-]{0,31}" autocapitalize="none"
                      placeholder="charles">
             </label>
@@ -109,6 +109,25 @@
     </div>
   </section>
 
+  <section id="ecran-fichiers" hidden>
+    <div class="barre-fichiers">
+      <strong id="titre-fichiers"></strong>
+      <button type="button" id="fermer-fichiers" class="discret">Fermer</button>
+    </div>
+    <form id="aller-fichiers" class="chemin-fichiers">
+      <button type="button" id="parent-fichiers" class="discret" aria-label="dossier parent">↑</button>
+      <input id="chemin-fichiers" autocapitalize="none" autocomplete="off" spellcheck="false"
+             aria-label="chemin">
+      <button type="submit" class="discret">Aller</button>
+    </form>
+    <div class="outils-fichiers">
+      <button type="button" id="envoyer-fichiers">Envoyer ici</button>
+      <input type="file" id="choix-fichiers" multiple hidden>
+      <span id="etat-fichiers"></span>
+    </div>
+    <ul id="liste-fichiers" class="liste-fichiers"></ul>
+  </section>
+
   <template id="modele-machine">
     <article class="carte machine">
       <div class="entete-machine">
@@ -123,6 +142,7 @@
       <p class="vu"></p>
       <div class="actions">
         <button type="button" class="ouvrir-terminal" hidden>Terminal</button>
+        <button type="button" class="ouvrir-fichiers" hidden>Fichiers</button>
         <button type="button" class="actualiser discret">Actualiser</button>
         <button type="button" class="revoquer danger discret">Révoquer</button>
       </div>

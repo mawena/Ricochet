@@ -112,7 +112,7 @@ async fn session(
         Err(erreur) => {
             let raison = match erreur {
                 ErreurEnvoi::Deconnectee => "machine déconnectée",
-                ErreurEnvoi::Saturee => "machine occupée, réessayer",
+                ErreurEnvoi::Saturee | ErreurEnvoi::SansFichiers => "machine occupée, réessayer",
                 ErreurEnvoi::SansTerminal => {
                     "terminal désactivé sur cette machine (section [terminal] de l'agent)"
                 }

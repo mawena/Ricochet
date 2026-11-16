@@ -13,6 +13,7 @@ pub mod totp;
 
 mod agents;
 mod api;
+mod fichiers;
 mod terminal;
 mod web;
 

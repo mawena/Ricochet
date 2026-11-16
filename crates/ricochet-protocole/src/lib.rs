@@ -19,6 +19,9 @@ pub struct InfoMachine {
     /// L'agent accepte d'ouvrir des terminaux (option `[terminal]` de sa configuration).
     #[serde(default)]
     pub terminal: bool,
+    /// L'agent donne accès à ses fichiers (option `[fichiers]` de sa configuration).
+    #[serde(default)]
+    pub fichiers: bool,
 }
 
 /// Numéro d'un terminal, attribué par le relais.
@@ -37,6 +40,86 @@ mod base64 {
         let texte = <std::borrow::Cow<'de, str>>::deserialize(d)?;
         BASE64.decode(texte.as_bytes()).map_err(D::Error::custom)
     }
+}
+
+/// Numéro d'une requête de fichiers, attribué par le relais et repris dans la réponse.
+pub type NumeroRequete = u64;
+
+/// Taille maximale d'un morceau de fichier transporté dans un message.
+pub const MORCEAU_MAX: u32 = 512 * 1024;
+
+/// Ordre sur les fichiers de la machine. Les chemins sont absolus ; `~` désigne le dossier
+/// personnel de l'utilisateur des fichiers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "ordre", rename_all = "snake_case")]
+pub enum OrdreFichiers {
+    /// Contenu d'un dossier.
+    Lister { chemin: String },
+    /// Lire au plus `taille` octets à partir de `decalage`.
+    Lire {
+        chemin: String,
+        decalage: u64,
+        taille: u32,
+    },
+    /// Écrire un morceau dans le fichier partiel `<chemin>.ricochet-partiel`, qui n'est écrit
+    /// qu'à la suite de ce qu'il contient déjà (`decalage` 0 le recommence). Avec `fin`, il
+    /// prend la place de `chemin`.
+    Ecrire {
+        chemin: String,
+        decalage: u64,
+        #[serde(with = "base64")]
+        donnees: Vec<u8>,
+        fin: bool,
+    },
+    /// Taille du fichier partiel de `chemin` (0 s'il n'existe pas), pour reprendre un envoi.
+    Partiel { chemin: String },
+}
+
+/// Réponse de l'agent à un ordre sur les fichiers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "reponse", rename_all = "snake_case")]
+pub enum ReponseFichiers {
+    /// Contenu du dossier `chemin` (chemin complet, liens résolus).
+    Dossier {
+        chemin: String,
+        entrees: Vec<Entree>,
+        /// La liste a été coupée : le dossier contient trop d'entrées.
+        tronque: bool,
+    },
+    /// Morceau lu ; vide à la fin du fichier.
+    Morceau {
+        #[serde(with = "base64")]
+        donnees: Vec<u8>,
+        taille_totale: u64,
+    },
+    /// Taille du fichier partiel après l'écriture (ou du fichier final, après `fin`).
+    Ecrit {
+        taille: u64,
+    },
+    Erreur {
+        message: String,
+    },
+}
+
+/// Une entrée d'un dossier.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Entree {
+    pub nom: String,
+    pub genre: Genre,
+    /// L'entrée est un lien symbolique (`genre` décrit sa cible).
+    #[serde(default)]
+    pub lien: bool,
+    pub taille: u64,
+    /// Dernière modification, en secondes depuis l'époque Unix.
+    pub modifie_le: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Genre {
+    Dossier,
+    Fichier,
+    Autre,
 }
 
 /// Un instantané de l'état de la machine, envoyé régulièrement.
@@ -87,6 +170,11 @@ pub enum AgentVersRelais {
         terminal: NumeroTerminal,
         raison: String,
     },
+    /// Réponse à un ordre sur les fichiers.
+    Fichiers {
+        requete: NumeroRequete,
+        reponse: ReponseFichiers,
+    },
 }
 
 /// Messages envoyés par le relais à l'agent.
@@ -119,6 +207,11 @@ pub enum RelaisVersAgent {
     },
     /// L'opérateur ferme le terminal : arrêter le shell.
     FermerTerminal { terminal: NumeroTerminal },
+    /// Ordre sur les fichiers ; l'agent répond par `AgentVersRelais::Fichiers`.
+    Fichiers {
+        requete: NumeroRequete,
+        ordre: OrdreFichiers,
+    },
 }
 
 /// Raison d'un refus.
@@ -165,6 +258,7 @@ mod tests {
             architecture: "x86_64".into(),
             version_agent: "0.1.0".into(),
             terminal: true,
+            fichiers: true,
         }
     }
 
@@ -250,6 +344,44 @@ mod tests {
         )
         .unwrap();
         assert!(!info.terminal);
+        assert!(!info.fichiers);
+    }
+
+    #[test]
+    fn fichiers_aller_retour() {
+        let ordre = RelaisVersAgent::Fichiers {
+            requete: 7,
+            ordre: OrdreFichiers::Ecrire {
+                chemin: "/tmp/a".into(),
+                decalage: 0,
+                donnees: b"abc".to_vec(),
+                fin: true,
+            },
+        };
+        let texte = encoder(&ordre);
+        assert_eq!(
+            texte,
+            r#"{"type":"fichiers","requete":7,"ordre":{"ordre":"ecrire","chemin":"/tmp/a","decalage":0,"donnees":"YWJj","fin":true}}"#
+        );
+        assert_eq!(decoder::<RelaisVersAgent>(&texte).unwrap(), ordre);
+        let reponse = AgentVersRelais::Fichiers {
+            requete: 7,
+            reponse: ReponseFichiers::Dossier {
+                chemin: "/".into(),
+                entrees: vec![Entree {
+                    nom: "etc".into(),
+                    genre: Genre::Dossier,
+                    lien: false,
+                    taille: 4096,
+                    modifie_le: Some(1),
+                }],
+                tronque: false,
+            },
+        };
+        assert_eq!(
+            decoder::<AgentVersRelais>(&encoder(&reponse)).unwrap(),
+            reponse
+        );
     }
 
     #[test]

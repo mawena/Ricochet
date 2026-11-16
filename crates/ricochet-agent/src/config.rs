@@ -17,6 +17,17 @@ pub struct Config {
     /// Terminal à distance : désactivé si la section `[terminal]` est absente.
     #[serde(default)]
     pub terminal: Option<ConfigTerminal>,
+    /// Accès aux fichiers : désactivé si la section `[fichiers]` est absente.
+    #[serde(default)]
+    pub fichiers: Option<ConfigFichiers>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigFichiers {
+    /// Utilisateur dont les droits s'appliquent aux fichiers (lecture, écriture, propriétaire
+    /// des fichiers reçus). Absent : root, comme l'agent.
+    pub utilisateur: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -77,10 +88,15 @@ mod tests {
         .unwrap();
         assert_eq!(config.id, "pc");
         assert!(config.terminal.is_none());
+        assert!(config.fichiers.is_none());
         let avec = Config::depuis_texte(
-            "relais = \"wss://e.org/agent\"\nid = \"pc\"\njeton = \"x\"\n[terminal]\n",
+            "relais = \"wss://e.org/agent\"\nid = \"pc\"\njeton = \"x\"\n[terminal]\n[fichiers]\nutilisateur = \"charles\"\n",
         )
         .unwrap();
+        assert_eq!(
+            avec.fichiers.unwrap().utilisateur.as_deref(),
+            Some("charles")
+        );
         let terminal = avec.terminal.unwrap();
         assert_eq!(terminal.commande, ["/bin/bash", "-l"]);
         assert_eq!(terminal.maximum, 8);
