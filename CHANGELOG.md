@@ -6,6 +6,12 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+### Modifié
+
+- « Ajouter une machine » affiche une commande complète à coller sur la machine (installation
+  de l'agent, configuration en droits 600, démarrage) et demande l'utilisateur du terminal,
+  au lieu des seules lignes de configuration.
+
 ## [0.1.1] - 2026-11-16
 
 ### Corrigé
