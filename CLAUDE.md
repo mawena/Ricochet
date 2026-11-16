@@ -10,10 +10,10 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 ## Où on en est
 - Phases 0, 1 et 2 faites (protocole, relais, agent, API, interface web, comptes Argon2 + TOTP,
   sessions, ajout/révocation de machines, audit) sauf **1.8** (déployer le relais sur le VPS) et
-  **1.9** (installer les agents). Phase 3 : terminal (3.1 à 3.3) et paquets `.deb` + dépôt APT (3.4)
-  faits ; reste **3.5** (release 0.1.0). Voir `ROADMAP.md`, la source de vérité du plan.
-- **Pas encore de release** : la première (0.1.0, `.deb` + dépôt APT signé selon
-  `~/.claude/regles/deb-apt.md`) est prévue à la fin de la phase 3 (terminal), pas avant.
+  **1.9** (installer les agents). Phase 3 faite : terminal, paquets
+  `.deb` + dépôt APT, **release 0.1.0** (16/11/2026). Prochaine : phase 4 (fichiers). Voir `ROADMAP.md`, la source de vérité du plan.
+- Releases : `scripts/construire-deb.sh`, `gh release create` avec `dist/*`, puis
+  `scripts/publier-apt.sh dist/*.deb` (site https://mawena.github.io/Ricochet/).
 
 ## Structure
 - `crates/ricochet-protocole` : messages JSON étiquetés `type`, `VERSION_PROTOCOLE = 1`.

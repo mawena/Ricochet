@@ -34,7 +34,7 @@ Règle : cocher une tâche **dès** qu'elle est terminée.
 - [x] 3.2 Relais : tunnel opérateur ↔ agent pour le terminal
 - [x] 3.3 Interface : terminal dans le navigateur (xterm.js servi par le relais)
 - [x] 3.4 Paquets `.deb` (`ricochet-serveur`, `ricochet-agent`) et dépôt APT signé (voir Gagarine)
-- [ ] 3.5 Release 0.1.0
+- [x] 3.5 Release 0.1.0
 
 ## Phase 4 : fichiers
 - [ ] 4.1 Parcourir les dossiers d'une machine
