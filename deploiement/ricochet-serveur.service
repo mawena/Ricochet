@@ -1,0 +1,29 @@
+[Unit]
+Description=Ricochet, relais de contrôle à distance
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ricochet-serveur servir --config /etc/ricochet/serveur.toml
+Restart=always
+RestartSec=2
+# Utilisateur système fixe (et non DynamicUser) : la commande
+# `sudo -u ricochet ricochet-serveur compte ajouter …` écrit dans la même base.
+User=ricochet
+Group=ricochet
+StateDirectory=ricochet
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

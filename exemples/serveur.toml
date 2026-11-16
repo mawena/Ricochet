@@ -1,0 +1,22 @@
+# Configuration du relais : /etc/ricochet/serveur.toml
+# Les machines et les comptes opérateur ne sont pas ici : ils vivent dans la base de données.
+# Comptes : `sudo -u ricochet ricochet-serveur compte ajouter <nom>` ; machines : interface web.
+
+# Adresse d'écoute, locale : nginx assure le HTTPS devant.
+ecoute = "127.0.0.1:7870"
+
+# Base SQLite (comptes, sessions, machines, journal d'audit).
+base = "/var/lib/ricochet/ricochet.db"
+
+# Durée de vie d'une session de l'interface, en heures.
+duree_session_h = 12
+
+# Cookie de session réservé au HTTPS. Mettre false seulement pour un essai local en HTTP.
+cookie_securise = true
+
+# Période d'envoi de l'état par les agents, en secondes.
+intervalle_etat_s = 30
+
+# Facultatif : empreinte d'un jeton pour appeler l'API depuis un script
+# (`ricochet-serveur jeton`, puis `Authorization: Bearer <jeton>`).
+# jeton_operateur_sha256 = "empreinte-de-64-caracteres"

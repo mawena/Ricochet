@@ -1,0 +1,11 @@
+# Configuration de l'agent : /etc/ricochet/agent.toml (droits 600, il contient le jeton).
+
+relais = "wss://ricochet.mawena.cloud/agent"
+id = "pc"
+jeton = "remplacer-par-le-jeton"
+
+# Terminal à distance : retirer les « # » pour l'activer. Sans cette section, l'agent refuse
+# d'ouvrir un terminal. L'agent tourne en root : préférer le shell d'un utilisateur.
+# [terminal]
+# commande = ["runuser", "-l", "charles"]
+# maximum = 8
