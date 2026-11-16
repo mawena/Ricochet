@@ -12,6 +12,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::{
     Config,
+    fichiers::Fichiers,
     systeme::{Collecteur, info_machine},
     terminaux::{Evenement, Terminaux},
 };
@@ -80,7 +81,7 @@ pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Re
         version_protocole: VERSION_PROTOCOLE,
         id: config.id.clone(),
         jeton: config.jeton.clone(),
-        info: info_machine(config.terminal.is_some()),
+        info: info_machine(config.terminal.is_some(), config.fichiers.is_some()),
     }))
     .await?;
 
@@ -103,6 +104,7 @@ pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Re
 
     // Les terminaux appartiennent à la session : ils sont fermés quand elle se termine.
     let (mut terminaux, mut evenements) = Terminaux::new(config.terminal.clone());
+    let (fichiers, mut reponses_fichiers) = Fichiers::new(config.fichiers.clone());
     let mut minuterie = tokio::time::interval(Duration::from_secs(intervalle.max(1)));
     let mut dernier_message = Instant::now();
     loop {
@@ -124,12 +126,15 @@ pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Re
                 };
                 ws.send(texte(&message)).await?;
             }
+            Some((requete, reponse)) = reponses_fichiers.recv() => {
+                ws.send(texte(&AgentVersRelais::Fichiers { requete, reponse })).await?;
+            }
             message = ws.next() => {
                 dernier_message = Instant::now();
                 match message {
                     Some(Ok(Message::Text(t))) => match decoder::<RelaisVersAgent>(&t) {
                         Ok(message) => {
-                            if let Some(reponse) = traiter(message, collecteur, &mut terminaux) {
+                            if let Some(reponse) = traiter(message, collecteur, &mut terminaux, &fichiers) {
                                 ws.send(texte(&reponse)).await?;
                             }
                         }
@@ -149,6 +154,7 @@ fn traiter(
     message: RelaisVersAgent,
     collecteur: &mut Collecteur,
     terminaux: &mut Terminaux,
+    fichiers: &Fichiers,
 ) -> Option<AgentVersRelais> {
     match message {
         RelaisVersAgent::DemandeEtat => Some(AgentVersRelais::Etat {
@@ -184,6 +190,9 @@ fn traiter(
             terminaux.fermer(terminal);
             None
         }
+        RelaisVersAgent::Fichiers { requete, ordre } => fichiers
+            .demander(requete, ordre)
+            .map(|(requete, reponse)| AgentVersRelais::Fichiers { requete, reponse }),
         autre => {
             tracing::warn!("message inattendu du relais : {autre:?}");
             None
@@ -219,6 +228,7 @@ mod tests {
             id: "essai".into(),
             jeton: "x".into(),
             terminal: None,
+            fichiers: None,
         };
         let mut collecteur = Collecteur::new().unwrap();
         assert!(session(&config, &mut collecteur).await.is_err());

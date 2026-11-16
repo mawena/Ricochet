@@ -203,3 +203,55 @@ pre {
 }
 .touches button.actif { background: var(--accent); color: #fff; }
 body.terminal-ouvert { overflow: hidden; }
+
+/* --- Fichiers --- */
+#ecran-fichiers {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--fond);
+  padding: calc(env(safe-area-inset-top) + 0.5rem) calc(env(safe-area-inset-right) + 0.75rem)
+    calc(env(safe-area-inset-bottom) + 0.5rem) calc(env(safe-area-inset-left) + 0.75rem);
+}
+.barre-fichiers { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.barre-fichiers strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chemin-fichiers { display: flex; gap: 0.4rem; }
+.chemin-fichiers input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; }
+.chemin-fichiers button, .barre-fichiers button { flex: none; padding: 0.3rem 0.8rem; }
+.outils-fichiers { display: flex; align-items: center; gap: 0.75rem; }
+#etat-fichiers { color: var(--doux); font-size: 0.85rem; overflow-wrap: anywhere; }
+#etat-fichiers.erreur { color: var(--danger); }
+.liste-fichiers {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--carte);
+  border: 1px solid var(--bord);
+  border-radius: var(--rayon);
+}
+.liste-fichiers li + li { border-top: 1px solid var(--bord); }
+.liste-fichiers .entree {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0 0.4rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--texte);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+.entree .icone { grid-row: span 2; align-self: center; }
+.entree .nom-entree { overflow-wrap: anywhere; }
+.entree .details { color: var(--doux); font-size: 0.8rem; }
+body.fichiers-ouverts { overflow: hidden; }

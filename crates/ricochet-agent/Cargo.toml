@@ -22,7 +22,9 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 anyhow.workspace = true
 portable-pty.workspace = true
+libc.workspace = true
 
 [dev-dependencies]
 ricochet-serveur.workspace = true
 axum.workspace = true
+tower.workspace = true

@@ -20,7 +20,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    Adresse, Relais, comptes, config, jeton,
+    Adresse, Relais, comptes, config, fichiers, jeton,
     registre::{Commande, ErreurEnvoi, VueMachine, maintenant},
     terminal, totp,
 };
@@ -62,6 +62,15 @@ pub fn routeur(relais: Arc<Relais>) -> Router<Arc<Relais>> {
         .route("/machines/{id}", delete(revoquer_machine))
         .route("/machines/{id}/actualiser", post(actualiser))
         .route("/machines/{id}/terminal", get(terminal::connexion))
+        .route(
+            "/machines/{id}/fichiers",
+            get(fichiers::lister).put(fichiers::envoyer),
+        )
+        .route("/machines/{id}/fichiers/partiel", get(fichiers::partiel))
+        .route(
+            "/machines/{id}/fichiers/telecharger",
+            get(fichiers::telecharger),
+        )
         .route("/audit", get(audit))
         .layer(middleware::from_fn_with_state(relais, authentifier));
     Router::new()

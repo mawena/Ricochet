@@ -53,6 +53,7 @@ fn agent(relais: &str, jeton: &str) -> Config {
             commande: vec!["/bin/sh".into()],
             maximum: 2,
         }),
+        fichiers: Some(Default::default()),
     }
 }
 
@@ -225,4 +226,114 @@ async fn relais_injoignable() {
     )
     .await;
     assert!(erreur.is_err());
+}
+
+/// Appelle l'API du relais avec le jeton de l'opérateur ; renvoie statut, en-têtes et corps.
+async fn appeler_api(
+    relais: &Arc<Relais>,
+    methode: &str,
+    chemin: &str,
+    entetes: &[(&str, &str)],
+    corps: &[u8],
+) -> (u16, axum::http::HeaderMap, Vec<u8>) {
+    use tower::ServiceExt;
+    let mut requete = axum::http::Request::builder()
+        .method(methode)
+        .uri(chemin)
+        .header("authorization", format!("Bearer {JETON_OPERATEUR}"));
+    for (nom, valeur) in entetes {
+        requete = requete.header(*nom, *valeur);
+    }
+    let reponse = application(relais.clone())
+        .oneshot(
+            requete
+                .body(axum::body::Body::from(corps.to_vec()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let statut = reponse.status().as_u16();
+    let entetes = reponse.headers().clone();
+    let corps = axum::body::to_bytes(reponse.into_body(), 1 << 24)
+        .await
+        .unwrap();
+    (statut, entetes, corps.to_vec())
+}
+
+#[tokio::test]
+async fn fichiers_de_bout_en_bout() {
+    let (url, relais) = demarrer_relais().await;
+    let config = agent(&url, "secret-pc");
+    tokio::spawn(async move { session(&config, &mut Collecteur::new().unwrap()).await });
+    attendre_connexion(&relais).await;
+
+    let dossier = std::env::temp_dir().join(format!("ricochet-e2e-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dossier);
+    std::fs::create_dir_all(&dossier).unwrap();
+    let d = dossier.to_str().unwrap();
+    // Plus d'un morceau, pour que le téléchargement en demande plusieurs à l'agent.
+    let contenu: Vec<u8> = (0..700_000u32).map(|i| (i % 251) as u8).collect();
+    let (debut, fin) = contenu.split_at(400_000);
+
+    let envoi = |decalage: usize, fin: bool| {
+        format!("/api/machines/pc/fichiers?chemin={d}/f.bin&decalage={decalage}&fin={fin}")
+    };
+    let (statut, _, corps) = appeler_api(&relais, "PUT", &envoi(0, false), &[], debut).await;
+    assert_eq!(
+        (statut, corps.as_slice()),
+        (200, &br#"{"taille":400000}"#[..])
+    );
+    let partiel = format!("/api/machines/pc/fichiers/partiel?chemin={d}/f.bin");
+    let (_, _, corps) = appeler_api(&relais, "GET", &partiel, &[], b"").await;
+    assert_eq!(corps, br#"{"taille":400000}"#);
+    let (statut, _, _) = appeler_api(&relais, "PUT", &envoi(400_000, true), &[], fin).await;
+    assert_eq!(statut, 200);
+    assert_eq!(std::fs::read(dossier.join("f.bin")).unwrap(), contenu);
+
+    let (statut, _, corps) = appeler_api(
+        &relais,
+        "GET",
+        &format!("/api/machines/pc/fichiers?chemin={d}"),
+        &[],
+        b"",
+    )
+    .await;
+    assert_eq!(statut, 200);
+    let liste: serde_json::Value = serde_json::from_slice(&corps).unwrap();
+    assert_eq!(liste["entrees"][0]["nom"], "f.bin");
+    assert_eq!(liste["entrees"][0]["taille"], 700_000);
+
+    let telecharger = format!("/api/machines/pc/fichiers/telecharger?chemin={d}/f.bin");
+    let (statut, entetes, corps) = appeler_api(&relais, "GET", &telecharger, &[], b"").await;
+    assert_eq!(statut, 200);
+    assert_eq!(
+        entetes["content-disposition"],
+        "attachment; filename*=UTF-8''f.bin"
+    );
+    assert_eq!(corps, contenu);
+    let (statut, entetes, corps) = appeler_api(
+        &relais,
+        "GET",
+        &telecharger,
+        &[("range", "bytes=600000-")],
+        b"",
+    )
+    .await;
+    assert_eq!(statut, 206);
+    assert_eq!(entetes["content-range"], "bytes 600000-699999/700000");
+    assert_eq!(corps, &contenu[600_000..]);
+
+    let (statut, _, corps) = appeler_api(
+        &relais,
+        "GET",
+        &format!("/api/machines/pc/fichiers/telecharger?chemin={d}/absent"),
+        &[],
+        b"",
+    )
+    .await;
+    assert_eq!(statut, 422, "{}", String::from_utf8_lossy(&corps));
+    let audit = relais.base.journal(10).unwrap();
+    let actions = serde_json::to_string(&audit).unwrap();
+    assert!(actions.contains("fichier_recu") && actions.contains("fichier_telecharge"));
+    std::fs::remove_dir_all(dossier).unwrap();
 }
