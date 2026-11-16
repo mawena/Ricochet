@@ -71,6 +71,8 @@ fn texte(message: &AgentVersRelais) -> Message {
 
 /// Une session complète : connexion, présentation, puis échanges jusqu'à la coupure.
 pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Result<Fin> {
+    // Sans fournisseur installé, la première connexion wss:// panique. Déjà fait : sans effet.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let (mut ws, _) = tokio_tungstenite::connect_async(config.relais.as_str())
         .await
         .with_context(|| format!("connexion à {}", config.relais))?;
@@ -199,5 +201,26 @@ mod tests {
         assert_eq!(attente(3), Duration::from_secs(8));
         assert_eq!(attente(6), ATTENTE_MAX);
         assert_eq!(attente(100), ATTENTE_MAX);
+    }
+
+    /// Le relais public est en wss:// : la poignée de main TLS doit échouer proprement face à
+    /// un pair qui n'en parle pas, sans paniquer faute de fournisseur de chiffrement.
+    #[tokio::test]
+    async fn wss_sans_panique() {
+        let ecoute = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = ecoute.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((flux, _)) = ecoute.accept().await {
+                drop(flux);
+            }
+        });
+        let config = Config {
+            relais: format!("wss://127.0.0.1:{port}/agent"),
+            id: "essai".into(),
+            jeton: "x".into(),
+            terminal: None,
+        };
+        let mut collecteur = Collecteur::new().unwrap();
+        assert!(session(&config, &mut collecteur).await.is_err());
     }
 }

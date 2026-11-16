@@ -1040,7 +1040,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "ricochet-agent"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1049,6 +1049,7 @@ dependencies = [
  "portable-pty",
  "ricochet-protocole",
  "ricochet-serveur",
+ "rustls",
  "serde",
  "serde_json",
  "sysinfo",
@@ -1061,7 +1062,7 @@ dependencies = [
 
 [[package]]
 name = "ricochet-protocole"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "data-encoding",
  "serde",
@@ -1070,7 +1071,7 @@ dependencies = [
 
 [[package]]
 name = "ricochet-serveur"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "argon2",
@@ -1161,7 +1162,9 @@ version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
+ "log",
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",

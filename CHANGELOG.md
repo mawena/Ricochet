@@ -6,6 +6,14 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.1.1] - 2026-11-16
+
+### Corrigé
+
+- L'agent plantait au premier essai de connexion à un relais en `wss://` (aucun fournisseur
+  de chiffrement compilé pour rustls) : il embarque maintenant `ring`. Un test couvre la
+  connexion TLS.
+
 ## [0.1.0] - 2026-11-16
 
 ### Ajouté
@@ -55,5 +63,6 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
   restent limités aux fichiers du relais.
 
 
-[Non publié]: https://github.com/mawena/Ricochet/compare/v0.1.0...HEAD
+[Non publié]: https://github.com/mawena/Ricochet/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/mawena/Ricochet/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mawena/Ricochet/releases/tag/v0.1.0
