@@ -8,10 +8,10 @@ Choix validés par Charles le 16/11/2026 : tout en **Rust** ; fonctions voulues 
 fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en dernier).
 
 ## Où on en est
-- Phases 0 à 3 faites (protocole, relais, agent, interface web, comptes Argon2 + TOTP, audit,
-  terminal, paquets `.deb` + dépôt APT). Dernière release **0.1.2** (16/11/2026). **1.8 faite** :
+- Phases 0 à 4 faites (protocole, relais, agent, interface web, comptes Argon2 + TOTP, audit, fichiers,
+  terminal, paquets `.deb` + dépôt APT). Dernière release **0.2.0** (16/11/2026, fichiers). **1.8 faite** :
   relais en ligne sur https://ricochet.mawena.cloud (paquet, vhost `/etc/nginx/sites-available/ricochet`,
-  certificat certbot, compte `mawena`). **1.9 faite** : agents `mawena-cloud` (VPS) et `pc-bureau` en ligne. Ensuite phase 4 (fichiers). Voir `ROADMAP.md`.
+  certificat certbot, compte `mawena`). **1.9 faite** : agents `mawena-cloud` (VPS) et `pc-bureau` en ligne. Phase 4 (fichiers) faite. Ensuite phase 5 (supervision, actions rapides). Voir `ROADMAP.md`.
 - Releases : `scripts/construire-deb.sh`, `gh release create` avec `dist/*`, puis
   `scripts/publier-apt.sh dist/*.deb` (site https://mawena.github.io/Ricochet/).
 
@@ -32,6 +32,10 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
   texte = taille) ; numéros de terminal attribués par le relais, liés à la session de l'agent.
   xterm.js 6.0 copié dans `web/vendor/` (provenance et empreintes dans `LISEZMOI.md`) ; la CSP
   permet `style-src 'unsafe-inline'` pour lui.
+- Fichiers : agent `fichiers.rs` (un fil dédié par session, fsuid/fsgid/setgroups propres au
+  fil si `[fichiers] utilisateur`, envoi dans `<nom>.ricochet-partiel` puis renommage), relais
+  `fichiers.rs` (requêtes numérotées dans le registre, réponse par oneshot, téléchargement en
+  flux avec `Range`) ; capacité annoncée par `InfoMachine.fichiers`, protocole toujours en v1.
 - `crates/ricochet-agent/tests/bout_en_bout.rs` : vrai relais + vrai agent sur 127.0.0.1.
 - Essai de l'interface sans écran : Chromium de Playwright dans `~/.cache/ms-playwright`
   (`chrome-headless-shell --remote-debugging-pipe`, piloté en CDP par un petit script Python).
