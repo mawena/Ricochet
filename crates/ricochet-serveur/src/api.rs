@@ -22,7 +22,7 @@ use serde_json::json;
 use crate::{
     Adresse, Relais, comptes, config, jeton,
     registre::{Commande, ErreurEnvoi, VueMachine, maintenant},
-    totp,
+    terminal, totp,
 };
 
 /// Nom du compte inscrit au journal pour les appels faits avec le jeton de la configuration.
@@ -30,14 +30,14 @@ const COMPTE_JETON: &str = "jeton-api";
 
 /// L'opérateur authentifié d'une requête.
 #[derive(Clone)]
-struct Operateur {
-    compte: String,
+pub(crate) struct Operateur {
+    pub compte: String,
     /// Empreinte de la session (absente avec le jeton de la configuration).
-    session: Option<String>,
+    pub session: Option<String>,
 }
 
 /// Erreur interne : journalisée, renvoyée sans détail.
-struct Erreur(anyhow::Error);
+pub(crate) struct Erreur(anyhow::Error);
 
 impl<E: Into<anyhow::Error>> From<E> for Erreur {
     fn from(erreur: E) -> Self {
@@ -61,6 +61,7 @@ pub fn routeur(relais: Arc<Relais>) -> Router<Arc<Relais>> {
         .route("/machines", get(machines).post(ajouter_machine))
         .route("/machines/{id}", delete(revoquer_machine))
         .route("/machines/{id}/actualiser", post(actualiser))
+        .route("/machines/{id}/terminal", get(terminal::connexion))
         .route("/audit", get(audit))
         .layer(middleware::from_fn_with_state(relais, authentifier));
     Router::new()
@@ -336,9 +337,7 @@ async fn actualiser(
             Err(ErreurEnvoi::Deconnectee) => {
                 (StatusCode::CONFLICT, "machine déconnectée").into_response()
             }
-            Err(ErreurEnvoi::Saturee) => {
-                (StatusCode::SERVICE_UNAVAILABLE, "machine occupée").into_response()
-            }
+            Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "machine occupée").into_response(),
         },
     )
 }
@@ -659,6 +658,10 @@ mod tests {
             .to_str()
             .unwrap();
         assert!(csp.contains("frame-ancestors 'none'"));
+        assert!(
+            csp.contains("script-src 'self';"),
+            "aucun script en ligne : {csp}"
+        );
         assert_eq!(reponse.headers()["x-frame-options"], "DENY");
     }
 }

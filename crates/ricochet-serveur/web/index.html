@@ -82,6 +82,28 @@
     </section>
   </main>
 
+  <section id="ecran-terminal" hidden>
+    <div class="barre-terminal">
+      <strong id="titre-terminal"></strong>
+      <span id="etat-terminal"></span>
+      <button type="button" id="fermer-terminal" class="discret">Fermer</button>
+    </div>
+    <div id="terminal"></div>
+    <div class="touches" id="touches">
+      <button type="button" data-touche="echap">Échap</button>
+      <button type="button" data-touche="tab">Tab</button>
+      <button type="button" data-touche="ctrl" id="touche-ctrl">Ctrl</button>
+      <button type="button" data-touche="gauche" aria-label="gauche">←</button>
+      <button type="button" data-touche="haut" aria-label="haut">↑</button>
+      <button type="button" data-touche="bas" aria-label="bas">↓</button>
+      <button type="button" data-touche="droite" aria-label="droite">→</button>
+      <button type="button" data-touche="pipe">|</button>
+      <button type="button" data-touche="tilde">~</button>
+      <button type="button" data-touche="tiret">-</button>
+      <button type="button" data-touche="barre">/</button>
+    </div>
+  </section>
+
   <template id="modele-machine">
     <article class="carte machine">
       <div class="entete-machine">
@@ -95,7 +117,8 @@
       <div class="disques"></div>
       <p class="vu"></p>
       <div class="actions">
-        <button type="button" class="actualiser">Actualiser</button>
+        <button type="button" class="ouvrir-terminal" hidden>Terminal</button>
+        <button type="button" class="actualiser discret">Actualiser</button>
         <button type="button" class="revoquer danger discret">Révoquer</button>
       </div>
     </article>

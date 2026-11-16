@@ -4,12 +4,12 @@ use std::{
     collections::HashMap,
     sync::{
         Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU32, AtomicU64, Ordering},
     },
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use ricochet_protocole::{EtatMachine, InfoMachine, RelaisVersAgent};
+use ricochet_protocole::{EtatMachine, InfoMachine, NumeroTerminal, RelaisVersAgent};
 use serde::Serialize;
 use tokio::sync::mpsc;
 
@@ -24,10 +24,29 @@ pub enum Commande {
     Remplacer,
 }
 
+/// Nombre de terminaux ouverts en même temps sur une machine, côté relais.
+pub const TERMINAUX_MAX: usize = 8;
+
+/// Ce que l'agent renvoie pour un terminal, transmis au navigateur de l'opérateur.
+#[derive(Debug, PartialEq, Eq)]
+pub enum EvenementTerminal {
+    Sortie(Vec<u8>),
+    Ferme(String),
+}
+
 #[derive(Default)]
 pub struct Registre {
     machines: Mutex<HashMap<String, Machine>>,
     compteur: AtomicU64,
+    terminaux: Mutex<HashMap<NumeroTerminal, TerminalOuvert>>,
+    compteur_terminaux: AtomicU32,
+}
+
+/// Un terminal appartient à une session d'agent : seule celle-ci peut y écrire.
+struct TerminalOuvert {
+    machine: String,
+    session: u64,
+    sortie: mpsc::Sender<EvenementTerminal>,
 }
 
 #[derive(Default)]
@@ -66,6 +85,10 @@ pub struct VueMachine {
 pub enum ErreurEnvoi {
     Deconnectee,
     Saturee,
+    /// L'agent n'accepte pas les terminaux.
+    SansTerminal,
+    /// Trop de terminaux ouverts sur cette machine.
+    TropDeTerminaux,
 }
 
 pub fn maintenant() -> u64 {
@@ -115,9 +138,14 @@ impl Registre {
         });
     }
 
-    /// Ferme la session, si c'est toujours la session courante de l'agent.
+    /// Ferme la session, si c'est toujours la session courante de l'agent, et les terminaux
+    /// qu'elle portait.
     pub fn fermer_session(&self, id: &str, numero: u64) {
         self.modifier(id, numero, |machine| machine.session = None);
+        self.terminaux
+            .lock()
+            .unwrap()
+            .retain(|_, t| !(t.machine == id && t.session == numero));
     }
 
     fn modifier(&self, id: &str, numero: u64, action: impl FnOnce(&mut Machine)) {
@@ -142,12 +170,96 @@ impl Registre {
         })
     }
 
-    /// Oublie une machine révoquée et ferme sa connexion.
+    /// File des commandes de la session courante, pour un envoi qui attend s'il le faut.
+    pub fn file(&self, id: &str) -> Option<mpsc::Sender<Commande>> {
+        let machines = self.machines.lock().unwrap();
+        Some(machines.get(id)?.session.as_ref()?.commandes.clone())
+    }
+
+    /// Oublie une machine révoquée et ferme sa connexion et ses terminaux.
     pub fn retirer(&self, id: &str) {
         let machine = self.machines.lock().unwrap().remove(id);
         if let Some(session) = machine.and_then(|m| m.session) {
             let _ = session.commandes.try_send(Commande::Remplacer);
         }
+        self.terminaux
+            .lock()
+            .unwrap()
+            .retain(|_, t| t.machine != id);
+    }
+
+    /// Ouvre un terminal sur la machine : l'ordre part à l'agent, et sa sortie arrivera dans
+    /// la file renvoyée.
+    pub fn ouvrir_terminal(
+        &self,
+        id: &str,
+        colonnes: u16,
+        lignes: u16,
+    ) -> Result<(NumeroTerminal, mpsc::Receiver<EvenementTerminal>), ErreurEnvoi> {
+        let machines = self.machines.lock().unwrap();
+        let machine = machines.get(id).ok_or(ErreurEnvoi::Deconnectee)?;
+        let session = machine.session.as_ref().ok_or(ErreurEnvoi::Deconnectee)?;
+        if !machine.info.as_ref().is_some_and(|i| i.terminal) {
+            return Err(ErreurEnvoi::SansTerminal);
+        }
+        let mut terminaux = self.terminaux.lock().unwrap();
+        if terminaux.values().filter(|t| t.machine == id).count() >= TERMINAUX_MAX {
+            return Err(ErreurEnvoi::TropDeTerminaux);
+        }
+        let terminal = self.compteur_terminaux.fetch_add(1, Ordering::Relaxed) + 1;
+        session
+            .commandes
+            .try_send(Commande::Envoyer(RelaisVersAgent::OuvrirTerminal {
+                terminal,
+                colonnes,
+                lignes,
+            }))
+            .map_err(|e| match e {
+                mpsc::error::TrySendError::Full(_) => ErreurEnvoi::Saturee,
+                mpsc::error::TrySendError::Closed(_) => ErreurEnvoi::Deconnectee,
+            })?;
+        let (envoi, reception) = mpsc::channel(64);
+        terminaux.insert(
+            terminal,
+            TerminalOuvert {
+                machine: id.to_owned(),
+                session: session.numero,
+                sortie: envoi,
+            },
+        );
+        Ok((terminal, reception))
+    }
+
+    /// Où transmettre la sortie d'un terminal, si la session de l'agent en est bien la
+    /// propriétaire (un agent ne peut pas écrire dans le terminal d'une autre machine).
+    pub fn sortie_terminal(
+        &self,
+        id: &str,
+        session: u64,
+        terminal: NumeroTerminal,
+    ) -> Option<mpsc::Sender<EvenementTerminal>> {
+        let terminaux = self.terminaux.lock().unwrap();
+        let ouvert = terminaux.get(&terminal)?;
+        (ouvert.machine == id && ouvert.session == session).then(|| ouvert.sortie.clone())
+    }
+
+    /// L'agent signale la fin d'un terminal : prévenir le navigateur.
+    pub fn terminal_ferme(&self, id: &str, session: u64, terminal: NumeroTerminal, raison: String) {
+        let mut terminaux = self.terminaux.lock().unwrap();
+        if terminaux
+            .get(&terminal)
+            .is_some_and(|t| t.machine == id && t.session == session)
+            && let Some(ouvert) = terminaux.remove(&terminal)
+        {
+            let _ = ouvert.sortie.try_send(EvenementTerminal::Ferme(raison));
+        }
+    }
+
+    /// Oublie un terminal ; renvoie sa machine s'il était encore ouvert (l'agent est alors à
+    /// prévenir).
+    pub fn fermer_terminal(&self, terminal: NumeroTerminal) -> Option<String> {
+        let ouvert = self.terminaux.lock().unwrap().remove(&terminal)?;
+        Some(ouvert.machine)
     }
 
     /// Les machines déclarées, dans l'ordre donné, connectées ou non.
@@ -185,6 +297,7 @@ mod tests {
             noyau: "n".into(),
             architecture: "a".into(),
             version_agent: "v".into(),
+            terminal: true,
         }
     }
 
@@ -239,6 +352,85 @@ mod tests {
         assert!(matches!(file.try_recv(), Ok(Commande::Remplacer)));
         assert!(!registre.liste(&config())[0].connectee);
         assert!(registre.liste(&config())[0].info.is_none());
+    }
+
+    #[test]
+    fn terminaux() {
+        let registre = Registre::default();
+        assert_eq!(
+            registre.ouvrir_terminal("pc", 80, 24).unwrap_err(),
+            ErreurEnvoi::Deconnectee
+        );
+        let (session, mut file) = registre.ouvrir_session("pc", info(), "a".into());
+        let (terminal, mut sortie) = registre.ouvrir_terminal("pc", 80, 24).unwrap();
+        assert!(matches!(
+            file.try_recv(),
+            Ok(Commande::Envoyer(RelaisVersAgent::OuvrirTerminal {
+                colonnes: 80,
+                lignes: 24,
+                ..
+            }))
+        ));
+
+        // Seule la session de l'agent qui porte le terminal peut y écrire.
+        let (autre, _f) = registre.ouvrir_session("vps", info(), "b".into());
+        assert!(registre.sortie_terminal("vps", autre, terminal).is_none());
+        assert!(
+            registre
+                .sortie_terminal("pc", session + 99, terminal)
+                .is_none()
+        );
+        let envoi = registre.sortie_terminal("pc", session, terminal).unwrap();
+        envoi
+            .try_send(EvenementTerminal::Sortie(b"x".to_vec()))
+            .unwrap();
+        assert_eq!(
+            sortie.try_recv(),
+            Ok(EvenementTerminal::Sortie(b"x".to_vec()))
+        );
+        drop(envoi);
+
+        registre.terminal_ferme("vps", autre, terminal, "non".into());
+        assert!(
+            sortie.try_recv().is_err(),
+            "une autre machine ne ferme rien"
+        );
+        registre.terminal_ferme("pc", session, terminal, "fin".into());
+        assert_eq!(
+            sortie.try_recv(),
+            Ok(EvenementTerminal::Ferme("fin".into()))
+        );
+        assert_eq!(registre.fermer_terminal(terminal), None);
+
+        // La fin de la session de l'agent ferme ses terminaux.
+        let (t2, mut sortie2) = registre.ouvrir_terminal("pc", 80, 24).unwrap();
+        registre.fermer_session("pc", session);
+        assert!(sortie2.try_recv().is_err());
+        assert_eq!(registre.fermer_terminal(t2), None);
+    }
+
+    #[test]
+    fn terminaux_limites() {
+        let registre = Registre::default();
+        let mut sans = info();
+        sans.terminal = false;
+        let (_s, _f) = registre.ouvrir_session("pc", sans, "a".into());
+        assert_eq!(
+            registre.ouvrir_terminal("pc", 80, 24).unwrap_err(),
+            ErreurEnvoi::SansTerminal
+        );
+        let (_s, mut file) = registre.ouvrir_session("vps", info(), "b".into());
+        let mut ouverts = Vec::new();
+        for _ in 0..TERMINAUX_MAX {
+            ouverts.push(registre.ouvrir_terminal("vps", 80, 24).unwrap());
+            file.try_recv().unwrap();
+        }
+        assert_eq!(
+            registre.ouvrir_terminal("vps", 80, 24).unwrap_err(),
+            ErreurEnvoi::TropDeTerminaux
+        );
+        registre.retirer("vps");
+        assert_eq!(registre.fermer_terminal(ouverts[0].0), None);
     }
 
     #[test]

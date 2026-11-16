@@ -6,6 +6,7 @@
 pub mod config;
 pub mod connexion;
 pub mod systeme;
+pub mod terminaux;
 
 pub use config::Config;
 pub use connexion::executer;

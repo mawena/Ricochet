@@ -16,6 +16,27 @@ pub struct InfoMachine {
     pub noyau: String,
     pub architecture: String,
     pub version_agent: String,
+    /// L'agent accepte d'ouvrir des terminaux (option `[terminal]` de sa configuration).
+    #[serde(default)]
+    pub terminal: bool,
+}
+
+/// Numéro d'un terminal, attribué par le relais.
+pub type NumeroTerminal = u32;
+
+/// Octets transportés en base64 dans le JSON.
+mod base64 {
+    use data_encoding::BASE64;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S: Serializer>(octets: &[u8], s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&BASE64.encode(octets))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        let texte = <std::borrow::Cow<'de, str>>::deserialize(d)?;
+        BASE64.decode(texte.as_bytes()).map_err(D::Error::custom)
+    }
 }
 
 /// Un instantané de l'état de la machine, envoyé régulièrement.
@@ -55,6 +76,17 @@ pub enum AgentVersRelais {
     },
     /// État courant de la machine.
     Etat { etat: EtatMachine },
+    /// Ce que le terminal a affiché.
+    Sortie {
+        terminal: NumeroTerminal,
+        #[serde(with = "base64")]
+        donnees: Vec<u8>,
+    },
+    /// Le terminal s'est fermé (fin du shell) ou n'a pas pu s'ouvrir.
+    TerminalFerme {
+        terminal: NumeroTerminal,
+        raison: String,
+    },
 }
 
 /// Messages envoyés par le relais à l'agent.
@@ -67,6 +99,26 @@ pub enum RelaisVersAgent {
     Refus { raison: Refus },
     /// Le relais veut un état à jour sans attendre le prochain envoi.
     DemandeEtat,
+    /// Ouvrir un terminal de cette taille.
+    OuvrirTerminal {
+        terminal: NumeroTerminal,
+        colonnes: u16,
+        lignes: u16,
+    },
+    /// Ce que l'opérateur tape dans le terminal.
+    Entree {
+        terminal: NumeroTerminal,
+        #[serde(with = "base64")]
+        donnees: Vec<u8>,
+    },
+    /// La fenêtre du terminal a changé de taille.
+    Redimensionner {
+        terminal: NumeroTerminal,
+        colonnes: u16,
+        lignes: u16,
+    },
+    /// L'opérateur ferme le terminal : arrêter le shell.
+    FermerTerminal { terminal: NumeroTerminal },
 }
 
 /// Raison d'un refus.
@@ -112,6 +164,7 @@ mod tests {
             noyau: "6.8.0".into(),
             architecture: "x86_64".into(),
             version_agent: "0.1.0".into(),
+            terminal: true,
         }
     }
 
@@ -170,6 +223,33 @@ mod tests {
             decoder::<RelaisVersAgent>(&encoder(&bienvenue)).unwrap(),
             bienvenue
         );
+    }
+
+    #[test]
+    fn terminal_en_base64() {
+        let entree = RelaisVersAgent::Entree {
+            terminal: 3,
+            donnees: b"ls\r\xff".to_vec(),
+        };
+        let texte = encoder(&entree);
+        assert_eq!(
+            texte,
+            r#"{"type":"entree","terminal":3,"donnees":"bHMN/w=="}"#
+        );
+        assert_eq!(decoder::<RelaisVersAgent>(&texte).unwrap(), entree);
+        assert!(
+            decoder::<AgentVersRelais>(r#"{"type":"sortie","terminal":1,"donnees":"%%"}"#).is_err()
+        );
+    }
+
+    #[test]
+    fn info_sans_terminal() {
+        // Un agent qui ne parle pas du terminal ne l'accepte pas.
+        let info: InfoMachine = serde_json::from_str(
+            r#"{"nom_hote":"h","systeme":"s","noyau":"n","architecture":"a","version_agent":"v"}"#,
+        )
+        .unwrap();
+        assert!(!info.terminal);
     }
 
     #[test]

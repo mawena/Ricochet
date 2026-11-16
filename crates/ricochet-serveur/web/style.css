@@ -165,3 +165,41 @@ pre {
 .journal li.alerte { border-left: 4px solid var(--danger); }
 .journal time, .journal .qui { color: var(--doux); font-size: 0.8rem; }
 .journal strong { word-break: break-word; }
+
+/* --- Terminal --- */
+#ecran-terminal {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: #0b1020;
+  color: #e2e8f0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+.barre-terminal { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0.75rem; }
+.barre-terminal strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#etat-terminal { flex: 1; color: #94a3b8; font-size: 0.85rem; }
+.barre-terminal button { min-height: 2.2rem; padding: 0.3rem 0.8rem; color: #93c5fd; border-color: #334155; }
+#terminal { flex: 1; min-height: 0; padding: 0 0.25rem; }
+.touches {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.35rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: #111827;
+}
+.touches button {
+  flex: none;
+  min-width: 2.6rem;
+  min-height: 2.4rem;
+  padding: 0.2rem 0.6rem;
+  font-family: ui-monospace, monospace;
+  background: #1f2937;
+  color: #e5e7eb;
+}
+.touches button.actif { background: var(--accent); color: #fff; }
+body.terminal-ouvert { overflow: hidden; }

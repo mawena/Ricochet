@@ -16,7 +16,10 @@ use ricochet_protocole::{
     AgentVersRelais, InfoMachine, Refus, RelaisVersAgent, VERSION_PROTOCOLE, decoder, encoder,
 };
 
-use crate::{Adresse, Relais, jeton, registre::Commande};
+use crate::{
+    Adresse, Relais, jeton,
+    registre::{Commande, EvenementTerminal},
+};
 
 /// Délai laissé à l'agent pour se présenter.
 const DELAI_PRESENTATION: Duration = Duration::from_secs(10);
@@ -24,6 +27,9 @@ const DELAI_PRESENTATION: Duration = Duration::from_secs(10);
 const PERIODE_PING: Duration = Duration::from_secs(20);
 /// Sans aucun message de l'agent pendant ce temps, la connexion est jugée morte.
 const DELAI_SILENCE: Duration = Duration::from_secs(60);
+/// Attente maximale quand le navigateur ne suit pas la sortie d'un terminal : au-delà, le
+/// terminal est fermé plutôt que de bloquer toute la connexion de l'agent.
+const DELAI_TERMINAL: Duration = Duration::from_secs(5);
 /// Taille maximale d'un message d'agent.
 const TAILLE_MAX: usize = 1 << 20;
 
@@ -152,6 +158,25 @@ async fn boucle(
                     Message::Text(texte) => match decoder::<AgentVersRelais>(&texte) {
                         Ok(AgentVersRelais::Etat { etat }) => {
                             relais.registre.mettre_a_jour_etat(id, numero, etat);
+                        }
+                        Ok(AgentVersRelais::Sortie { terminal, donnees }) => {
+                            let Some(sortie) = relais.registre.sortie_terminal(id, numero, terminal)
+                            else {
+                                continue;
+                            };
+                            let envoi = sortie.send(EvenementTerminal::Sortie(donnees));
+                            if !matches!(tokio::time::timeout(DELAI_TERMINAL, envoi).await, Ok(Ok(())))
+                                && relais.registre.fermer_terminal(terminal).is_some()
+                            {
+                                tracing::warn!("agent « {id} » : terminal {terminal} saturé, fermé");
+                                let fermer = RelaisVersAgent::FermerTerminal { terminal };
+                                if !envoyer(socket, &fermer).await {
+                                    return;
+                                }
+                            }
+                        }
+                        Ok(AgentVersRelais::TerminalFerme { terminal, raison }) => {
+                            relais.registre.terminal_ferme(id, numero, terminal, raison);
                         }
                         Ok(AgentVersRelais::Bonjour { .. }) => {
                             tracing::warn!("agent « {id} » : second bonjour ignoré");

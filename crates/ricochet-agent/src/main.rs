@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
             collecteur.etat();
             tokio::time::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL).await;
             let sortie = serde_json::json!({
-                "info": systeme::info_machine(),
+                "info": systeme::info_machine(false),
                 "etat": collecteur.etat(),
             });
             println!("{}", serde_json::to_string_pretty(&sortie)?);
