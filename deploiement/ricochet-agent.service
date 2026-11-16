@@ -1,0 +1,12 @@
+[Unit]
+Description=Ricochet, agent de contrôle à distance
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ricochet-agent executer --config /etc/ricochet/agent.toml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

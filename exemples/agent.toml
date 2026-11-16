@@ -1,0 +1,5 @@
+# Configuration de l'agent : /etc/ricochet/agent.toml (droits 600, il contient le jeton).
+
+relais = "wss://ricochet.mawena.cloud/agent"
+id = "pc"
+jeton = "remplacer-par-le-jeton"

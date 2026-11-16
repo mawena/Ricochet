@@ -1,0 +1,21 @@
+# Configuration du relais : /etc/ricochet/serveur.toml
+# Les jetons ne sont jamais écrits ici, seulement leur empreinte (`ricochet-serveur jeton`).
+
+# Adresse d'écoute, locale : nginx assure le HTTPS devant.
+ecoute = "127.0.0.1:7870"
+
+# Empreinte du jeton de l'opérateur (accès à l'API).
+jeton_operateur_sha256 = "remplacer-par-l-empreinte-de-64-caracteres"
+
+# Période d'envoi de l'état par les agents, en secondes.
+intervalle_etat_s = 30
+
+[[agents]]
+id = "pc"
+nom = "PC de Charles"
+jeton_sha256 = "remplacer-par-l-empreinte-de-64-caracteres"
+
+[[agents]]
+id = "vps"
+nom = "VPS mawena.cloud"
+jeton_sha256 = "remplacer-par-l-empreinte-de-64-caracteres"

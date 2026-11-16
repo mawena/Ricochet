@@ -1,0 +1,17 @@
+[Unit]
+Description=Ricochet, relais de contrôle à distance
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ricochet-serveur servir --config /etc/ricochet/serveur.toml
+Restart=always
+RestartSec=2
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

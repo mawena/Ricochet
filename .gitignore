@@ -1,0 +1,4 @@
+/target
+/.claude/worktrees/
+# Configurations réelles : elles contiennent des jetons.
+/*.toml.local
