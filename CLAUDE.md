@@ -11,8 +11,7 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 - Phases 0 à 3 faites (protocole, relais, agent, interface web, comptes Argon2 + TOTP, audit,
   terminal, paquets `.deb` + dépôt APT). Dernière release **0.1.2** (16/11/2026). **1.8 faite** :
   relais en ligne sur https://ricochet.mawena.cloud (paquet, vhost `/etc/nginx/sites-available/ricochet`,
-  certificat certbot, compte `mawena`). **1.9 en cours** : agent `mawena-cloud` à passer en 0.1.1+
-  (la 0.1.0 paniquait en wss://), puis l'agent du PC. Ensuite phase 4 (fichiers). Voir `ROADMAP.md`.
+  certificat certbot, compte `mawena`). **1.9 faite** : agents `mawena-cloud` (VPS) et `pc-bureau` en ligne. Ensuite phase 4 (fichiers). Voir `ROADMAP.md`.
 - Releases : `scripts/construire-deb.sh`, `gh release create` avec `dist/*`, puis
   `scripts/publier-apt.sh dist/*.deb` (site https://mawena.github.io/Ricochet/).
 

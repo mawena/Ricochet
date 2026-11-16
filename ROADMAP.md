@@ -20,7 +20,7 @@ Règle : cocher une tâche **dès** qu'elle est terminée.
 - [x] 1.6 Test de bout en bout (vrai relais, vrai agent)
 - [x] 1.7 Services systemd et configuration nginx d'exemple
 - [x] 1.8 Déployer le relais sur le VPS (`ricochet.mawena.cloud`, DNS + certificat + nginx) — commandes `sudo` par Charles
-- [ ] 1.9 Agents sur le VPS et sur le PC, vérifier qu'ils apparaissent connectés
+- [x] 1.9 Agents sur le VPS et sur le PC, vérifier qu'ils apparaissent connectés
 
 ## Phase 2 : interface web et accès sécurisé
 - [x] 2.1 Comptes opérateur : mot de passe (Argon2) et double authentification TOTP
