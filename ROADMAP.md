@@ -64,6 +64,19 @@ tunnel est dans l'audit. La partie CCS est dans sa feuille de route (phase 21).
 - [x] 4b.7 Release 0.3.0, dépôt APT
 - [ ] 4b.8 Par Charles : mettre à jour relais et agents, créer le jeton des tunnels, activer `[tunnel]` et SSH sur `pc-bureau`
 
+## Mode Portier de l'interface web → release 0.4.0
+
+Demande de Charles du 17/11/2026 : brancher l'interface web sur Portier (connexion unique de
+mawena.cloud, contrat dans `Portier/docs/integration.md`), sans toucher aux agents ni aux clients
+automatiques.
+
+- [x] Section `[portier]` (`actif`, `utilisateurs`, `url`, `deconnexion`), désactivée par défaut
+- [x] `GET /` : session ouverte par l'en-tête `X-Portier-Utilisateur` (127.0.0.1/::1, un seul en-tête, nom dans la liste)
+- [x] En-tête ignoré par `/agent`, `/api/…` et `/sante`
+- [x] Bouton « Se connecter via Portier », déconnexion vers Portier (`GET /api/portier`)
+- [x] Tests (accepté, nom absent, IP non locale, option désactivée, points des agents), documentation, variante nginx
+- [ ] Par Charles : installer la 0.4.0, activer `[portier]`, protéger `location = /` dans nginx
+
 ## Phase 5 : supervision et actions rapides
 - [ ] 5.1 Services systemd : liste, état, démarrer, arrêter, redémarrer
 - [ ] 5.2 Redémarrer ou éteindre la machine (avec confirmation)

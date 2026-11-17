@@ -20,7 +20,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    Adresse, Relais, comptes, config, fichiers, jeton,
+    Adresse, Relais, comptes, config, fichiers, jeton, portier,
     registre::{Commande, ErreurEnvoi, VueMachine, maintenant},
     terminal, totp, tunnel,
 };
@@ -80,6 +80,7 @@ pub fn routeur(relais: Arc<Relais>) -> Router<Arc<Relais>> {
         .layer(middleware::from_fn_with_state(relais, authentifier));
     Router::new()
         .route("/connexion", post(connexion))
+        .route("/portier", get(infos_portier))
         .merge(protegees)
         .layer(middleware::from_fn(contre_csrf))
 }
@@ -93,7 +94,20 @@ fn nom_cookie(relais: &Relais) -> &'static str {
     }
 }
 
-fn cookie_recu(relais: &Relais, entetes: &HeaderMap) -> Option<String> {
+/// Cookie de session à envoyer au navigateur.
+pub(crate) fn cookie_session(relais: &Relais, valeur: &str, duree_s: u64) -> String {
+    let securise = if relais.config.cookie_securise {
+        "; Secure"
+    } else {
+        ""
+    };
+    format!(
+        "{}={valeur}; Path=/; HttpOnly; SameSite=Strict; Max-Age={duree_s}{securise}",
+        nom_cookie(relais)
+    )
+}
+
+pub(crate) fn cookie_recu(relais: &Relais, entetes: &HeaderMap) -> Option<String> {
     let nom = nom_cookie(relais);
     entetes
         .get_all(header::COOKIE)
@@ -160,11 +174,14 @@ async fn authentifier(
         }
     } else if let Some(valeur) = cookie_recu(&relais, requete.headers()) {
         let empreinte = jeton::empreinte(&valeur);
-        match relais.base.session(&empreinte, maintenant()) {
-            Ok(compte) => compte.map(|compte| Operateur {
-                compte,
-                session: Some(empreinte),
-            }),
+        let instant = maintenant();
+        match relais.base.session(&empreinte, instant) {
+            Ok(compte) => compte
+                .or_else(|| relais.sessions_portier.compte(&empreinte, instant))
+                .map(|compte| Operateur {
+                    compte,
+                    session: Some(empreinte),
+                }),
             Err(erreur) => return Erreur(erreur).into_response(),
         }
     } else {
@@ -245,15 +262,7 @@ async fn connexion(
         &adresse,
     )?;
     relais.noter(Some(&identifiants.nom), &adresse, "connexion", "");
-    let securise = if relais.config.cookie_securise {
-        "; Secure"
-    } else {
-        ""
-    };
-    let cookie = format!(
-        "{}={valeur}; Path=/; HttpOnly; SameSite=Strict; Max-Age={duree_s}{securise}",
-        nom_cookie(&relais)
-    );
+    let cookie = cookie_session(&relais, &valeur, duree_s);
     Ok((
         [(header::SET_COOKIE, HeaderValue::from_str(&cookie)?)],
         Json(json!({ "compte": identifiants.nom })),
@@ -268,6 +277,7 @@ async fn deconnexion(
 ) -> Resultat {
     if let Some(session) = &operateur.session {
         relais.base.supprimer_session(session)?;
+        relais.sessions_portier.supprimer(session);
     }
     relais.noter(Some(&operateur.compte), &adresse, "deconnexion", "");
     let cookie = format!("{}=; Path=/; Max-Age=0", nom_cookie(&relais));
@@ -276,6 +286,24 @@ async fn deconnexion(
         [(header::SET_COOKIE, HeaderValue::from_str(&cookie)?)],
     )
         .into_response())
+}
+
+/// Mode Portier, pour la page de connexion : adresse du bouton « Se connecter via Portier »
+/// (retour vers l'interface telle que demandée) et adresse où renvoie la déconnexion.
+async fn infos_portier(
+    State(relais): State<Arc<Relais>>,
+    entetes: HeaderMap,
+) -> Json<serde_json::Value> {
+    let reglage = &relais.config.portier;
+    if !reglage.actif {
+        return Json(json!({ "actif": false }));
+    }
+    let retour = portier::adresse_interface(&entetes, relais.config.cookie_securise);
+    Json(json!({
+        "actif": true,
+        "connexion": portier::adresse_connexion(reglage, &retour),
+        "deconnexion": reglage.adresse_deconnexion(),
+    }))
 }
 
 async fn moi(Extension(operateur): Extension<Operateur>) -> Json<serde_json::Value> {
@@ -679,6 +707,180 @@ mod tests {
             appeler(&relais, "POST", pc, &[BEARER], None).await.statut,
             409
         );
+    }
+
+    // --- Mode Portier ---
+
+    const LOCAL: &str = "127.0.0.1:50000";
+    const PORTIER: (&str, &str) = ("x-portier-utilisateur", "charles-gamligo");
+
+    fn relais_portier() -> Arc<Relais> {
+        let config = Config::depuis_texte(
+            "cookie_securise = false\n[portier]\nactif = true\n\
+             utilisateurs = [\"charles-gamligo\"]\nurl = \"https://portier.mawena.cloud\"\n",
+        )
+        .unwrap();
+        let base = Base::en_memoire();
+        base.ajouter_machine("pc", None, &jeton::empreinte("agent"), 0)
+            .unwrap();
+        Arc::new(Relais::new(config, base))
+    }
+
+    /// Requête venue de l'adresse `pair` (comme derrière nginx).
+    async fn appeler_depuis(
+        relais: &Arc<Relais>,
+        pair: &str,
+        chemin: &str,
+        entetes: &[(&str, &str)],
+    ) -> Reponse {
+        let mut requete = axum::http::Request::get(chemin);
+        for (nom, valeur) in entetes {
+            requete = requete.header(*nom, *valeur);
+        }
+        let mut requete = requete.body(Body::empty()).unwrap();
+        let pair: std::net::SocketAddr = pair.parse().unwrap();
+        requete
+            .extensions_mut()
+            .insert(axum::extract::ConnectInfo(pair));
+        let reponse = application(relais.clone()).oneshot(requete).await.unwrap();
+        let statut = reponse.status().as_u16();
+        let cookie = reponse
+            .headers()
+            .get("set-cookie")
+            .map(|v| v.to_str().unwrap().to_owned());
+        let corps = to_bytes(reponse.into_body(), 1 << 20).await.unwrap();
+        Reponse {
+            statut,
+            cookie,
+            corps: String::from_utf8_lossy(&corps).into_owned(),
+        }
+    }
+
+    #[tokio::test]
+    async fn portier_entete_accepte() {
+        let relais = relais_portier();
+        let page = appeler_depuis(&relais, LOCAL, "/", &[PORTIER]).await;
+        assert_eq!(page.statut, 200);
+        let cookie = page.cookie.expect("session ouverte par Portier");
+        assert!(cookie.contains("HttpOnly") && cookie.contains("SameSite=Strict"));
+        let valeur = cookie.split(';').next().unwrap().to_owned();
+
+        let session = [("cookie", valeur.as_str())];
+        let moi = appeler(&relais, "GET", "/api/moi", &session, None).await;
+        assert_eq!(moi.statut, 200);
+        assert!(moi.corps.contains("charles-gamligo"));
+        assert_eq!(
+            appeler(&relais, "GET", "/api/machines", &session, None)
+                .await
+                .statut,
+            200
+        );
+        // Une session existe déjà à ce nom : pas de nouvelle.
+        let encore = appeler_depuis(&relais, LOCAL, "/", &[PORTIER, session[0]]).await;
+        assert!(encore.cookie.is_none());
+        // Même via [::1].
+        assert!(
+            appeler_depuis(&relais, "[::1]:50000", "/", &[PORTIER])
+                .await
+                .cookie
+                .is_some()
+        );
+
+        let sortie = [("cookie", valeur.as_str()), ("x-ricochet", "1")];
+        assert_eq!(
+            appeler(&relais, "POST", "/api/deconnexion", &sortie, None)
+                .await
+                .statut,
+            204
+        );
+        assert_eq!(
+            appeler(&relais, "GET", "/api/moi", &session, None)
+                .await
+                .statut,
+            401
+        );
+        let journal = relais.base.journal(10).unwrap();
+        assert!(
+            journal.iter().any(|l| l.action == "connexion_portier"
+                && l.compte.as_deref() == Some("charles-gamligo"))
+        );
+    }
+
+    #[tokio::test]
+    async fn portier_nom_absent_de_la_liste() {
+        let relais = relais_portier();
+        let intrus = [("x-portier-utilisateur", "intrus")];
+        let page = appeler_depuis(&relais, LOCAL, "/", &intrus).await;
+        assert_eq!(page.statut, 200);
+        assert!(page.cookie.is_none());
+        // Deux en-têtes (même valides) : ignorés.
+        let double = appeler_depuis(&relais, LOCAL, "/", &[PORTIER, PORTIER]).await;
+        assert!(double.cookie.is_none());
+    }
+
+    #[tokio::test]
+    async fn portier_ip_non_locale() {
+        let relais = relais_portier();
+        let page = appeler_depuis(&relais, "203.0.113.5:4000", "/", &[PORTIER]).await;
+        assert_eq!(page.statut, 200);
+        assert!(page.cookie.is_none());
+    }
+
+    #[tokio::test]
+    async fn portier_option_desactivee() {
+        let relais = relais();
+        let page = appeler_depuis(&relais, LOCAL, "/", &[PORTIER]).await;
+        assert_eq!(page.statut, 200);
+        assert!(page.cookie.is_none());
+        let infos = appeler(&relais, "GET", "/api/portier", &[], None).await;
+        assert_eq!(infos.corps, r#"{"actif":false}"#);
+    }
+
+    #[tokio::test]
+    async fn portier_ignore_sur_les_points_des_agents_et_clients() {
+        let relais = relais_portier();
+        for chemin in [
+            "/api/moi",
+            "/api/machines",
+            "/api/machines/pc/tunnel?port=22",
+            "/api/machines/pc/terminal",
+            "/api/audit",
+        ] {
+            let reponse = appeler_depuis(&relais, LOCAL, chemin, &[PORTIER]).await;
+            assert_eq!(reponse.statut, 401, "{chemin}");
+            assert!(reponse.cookie.is_none(), "{chemin}");
+        }
+        for chemin in ["/agent", "/sante"] {
+            let reponse = appeler_depuis(&relais, LOCAL, chemin, &[PORTIER]).await;
+            assert!(reponse.cookie.is_none(), "{chemin}");
+            assert_ne!(reponse.statut, 101, "{chemin}");
+        }
+        // Les fichiers de l'interface n'ouvrent pas de session non plus : seulement la page.
+        assert!(
+            appeler_depuis(&relais, LOCAL, "/app.js", &[PORTIER])
+                .await
+                .cookie
+                .is_none()
+        );
+        assert!(relais.base.journal(10).unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn portier_bouton_et_deconnexion() {
+        let relais = relais_portier();
+        let entetes = [
+            ("host", "ricochet.mawena.cloud"),
+            ("x-forwarded-proto", "https"),
+        ];
+        let infos = appeler(&relais, "GET", "/api/portier", &entetes, None).await;
+        assert_eq!(infos.statut, 200);
+        let infos: serde_json::Value = serde_json::from_str(&infos.corps).unwrap();
+        assert_eq!(infos["actif"], true);
+        assert_eq!(
+            infos["connexion"],
+            "https://portier.mawena.cloud/connexion?retour=https%3A%2F%2Fricochet.mawena.cloud%2F"
+        );
+        assert_eq!(infos["deconnexion"], "https://portier.mawena.cloud/");
     }
 
     #[tokio::test]

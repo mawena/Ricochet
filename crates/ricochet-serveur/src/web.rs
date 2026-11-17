@@ -2,9 +2,15 @@
 
 use std::sync::Arc;
 
-use axum::{Router, http::header, response::IntoResponse, routing::get};
+use axum::{
+    Router,
+    extract::State,
+    http::{HeaderValue, header, request::Parts},
+    response::{IntoResponse, Response},
+    routing::get,
+};
 
-use crate::Relais;
+use crate::{Adresse, Relais, api, jeton, portier, registre::maintenant};
 
 const ACCUEIL: &str = include_str!("../web/index.html");
 const SCRIPT: &str = include_str!("../web/app.js");
@@ -21,10 +27,7 @@ fn fichier(type_mime: &'static str, contenu: &'static str) -> impl IntoResponse 
 
 pub fn routeur() -> Router<Arc<Relais>> {
     Router::new()
-        .route(
-            "/",
-            get(|| async { fichier("text/html; charset=utf-8", ACCUEIL) }),
-        )
+        .route("/", get(accueil))
         .route(
             "/app.js",
             get(|| async { fichier("text/javascript; charset=utf-8", SCRIPT) }),
@@ -53,4 +56,41 @@ pub fn routeur() -> Router<Arc<Relais>> {
             "/vendor/addon-fit.js",
             get(|| async { fichier("text/javascript; charset=utf-8", XTERM_AJUSTEMENT) }),
         )
+}
+
+/// Page de l'interface. En mode Portier, si nginx annonce un utilisateur autorisé et que le
+/// navigateur n'a pas déjà une session à ce nom, une session est ouverte sans mot de passe ni
+/// TOTP (Portier les a déjà vérifiés).
+async fn accueil(
+    State(relais): State<Arc<Relais>>,
+    Adresse(adresse): Adresse,
+    parts: Parts,
+) -> Response {
+    let page = fichier("text/html; charset=utf-8", ACCUEIL);
+    let Some(nom) = portier::utilisateur(&relais, &parts) else {
+        return page.into_response();
+    };
+    let instant = maintenant();
+    let deja = api::cookie_recu(&relais, &parts.headers).is_some_and(|valeur| {
+        relais
+            .sessions_portier
+            .compte(&jeton::empreinte(&valeur), instant)
+            .is_some_and(|compte| compte == nom)
+    });
+    if deja {
+        return page.into_response();
+    }
+    let valeur = match jeton::nouveau() {
+        Ok(valeur) => valeur,
+        Err(erreur) => return api::Erreur::from(erreur).into_response(),
+    };
+    let duree_s = relais.config.duree_session_h * 3600;
+    relais
+        .sessions_portier
+        .ouvrir(jeton::empreinte(&valeur), &nom, instant + duree_s);
+    relais.noter(Some(&nom), &adresse, "connexion_portier", "");
+    match HeaderValue::from_str(&api::cookie_session(&relais, &valeur, duree_s)) {
+        Ok(cookie) => ([(header::SET_COOKIE, cookie)], page).into_response(),
+        Err(erreur) => api::Erreur::from(erreur).into_response(),
+    }
 }

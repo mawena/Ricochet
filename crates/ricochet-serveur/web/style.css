@@ -89,6 +89,17 @@ button {
   color: #fff;
   cursor: pointer;
 }
+a.bouton {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+}
+#portier p { margin: 0.8rem 0 0; text-align: center; color: var(--doux); }
 button:disabled { opacity: 0.45; cursor: default; }
 button.discret { background: transparent; color: var(--accent); border: 1px solid var(--bord); }
 button.danger { color: var(--danger); }

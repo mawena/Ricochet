@@ -5,6 +5,8 @@
 const PERIODE_MS = 10000;
 const $ = (selecteur) => document.querySelector(selecteur);
 let minuterie = null;
+// Mode Portier (connexion unique) : adresses du bouton et de la déconnexion, ou null.
+let portier = null;
 
 class ErreurApi extends Error {
   constructor(statut, texte) {
@@ -548,6 +550,7 @@ async function envoyerFichiers(liste) {
 
 const ACTIONS = {
   connexion: "Connexion",
+  connexion_portier: "Connexion par Portier",
   connexion_refusee: "Connexion refusée",
   connexion_bloquee: "Connexion bloquée (trop d'essais)",
   deconnexion: "Déconnexion",
@@ -629,7 +632,25 @@ async function seDeconnecter() {
   fermerJeton();
   fermerTerminal();
   fermerFichiers();
+  if (portier) {
+    // La session de Portier reste ouverte tant qu'on ne s'y déconnecte pas.
+    window.location.assign(portier.deconnexion);
+    return;
+  }
   afficherConnexion();
+}
+
+async function chargerPortier() {
+  try {
+    const infos = await api("GET", "/portier");
+    if (infos && infos.actif) {
+      portier = { connexion: infos.connexion, deconnexion: infos.deconnexion };
+      $("#lien-portier").href = portier.connexion;
+      $("#portier").hidden = false;
+    }
+  } catch {
+    // Relais plus ancien ou erreur : connexion habituelle seulement.
+  }
 }
 
 async function demarrer() {
@@ -669,6 +690,7 @@ async function demarrer() {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && minuterie && !$("#onglet-machines").hidden) chargerMachines();
   });
+  await chargerPortier();
   try {
     const moi = await api("GET", "/moi");
     afficherTableau(moi.compte);

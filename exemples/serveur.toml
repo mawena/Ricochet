@@ -25,3 +25,13 @@ intervalle_etat_s = 30
 # tunnels (`ricochet-agent tunnel`, utilisé par CCS). Il ne donne ni terminal, ni fichiers, ni
 # gestion des machines. Même commande : `ricochet-serveur jeton`.
 # jeton_tunnel_sha256 = "empreinte-de-64-caracteres"
+
+# Facultatif : mode Portier de l'interface web (connexion unique de mawena.cloud).
+# Désactivé par défaut. Activé, la page `/` ouvre une session sans mot de passe ni TOTP quand
+# nginx (sur la même machine) transmet un seul en-tête X-Portier-Utilisateur dont la valeur est
+# dans `utilisateurs`. Jamais pour /agent ni l'API par jeton. Voir le README (« Mode Portier »).
+# [portier]
+# actif = true
+# utilisateurs = ["charles-gamligo"]
+# url = "https://portier.mawena.cloud"
+# deconnexion = "https://portier.mawena.cloud/"   # facultatif, `<url>/` par défaut

@@ -177,6 +177,7 @@ curl -H "Authorization: Bearer <jeton>" https://ricochet.mawena.cloud/api/machin
 | `GET /agent` | connexion WebSocket des agents |
 | `POST /api/connexion` | `{nom, mot_de_passe, code}` → cookie de session (`401`, `429` si trop d'essais) |
 | `POST /api/deconnexion` | ferme la session |
+| `GET /api/portier` | mode Portier : `{actif, connexion, deconnexion}` (sans connexion) |
 | `GET /api/moi` | compte connecté |
 | `GET /api/machines` | machines déclarées, connectées ou non, avec leur dernier état |
 | `POST /api/machines` | `{id, nom}` → `201 {id, jeton}` (`409` si l'identifiant existe) |
@@ -197,12 +198,43 @@ navigateur) ; trame texte `{"colonnes": 120, "lignes": 40}` pour redimensionner 
 fermeture porte la raison (`fin du shell (code 0)`, `session expirée`…). Un navigateur n'est
 accepté que si son en-tête `Origin` est celui du relais.
 
+### 7. Mode Portier (connexion unique)
+
+[Portier](https://portier.mawena.cloud) vérifie l'identité (compte et double facteur) avant que
+nginx ne transmette la requête, et annonce le nom vérifié dans l'en-tête
+`X-Portier-Utilisateur`. En mode Portier, l'interface web du relais lui fait confiance et se
+passe du mot de passe et du TOTP propres à Ricochet. Désactivé par défaut : sans la section,
+rien ne change.
+
+```toml
+[portier]
+actif = true
+utilisateurs = ["charles-gamligo"]          # noms acceptés
+url = "https://portier.mawena.cloud"
+# deconnexion = "https://portier.mawena.cloud/"   # facultatif, `<url>/` par défaut
+```
+
+- Seule la page `GET /` lit l'en-tête : si la connexion vient de `127.0.0.1` ou `::1`, porte un
+  **seul** en-tête `X-Portier-Utilisateur` et que ce nom est dans `utilisateurs`, le relais
+  ouvre une session de l'interface (même cookie qu'après mot de passe et TOTP, gardée en
+  mémoire, durée `duree_session_h`) et l'inscrit au journal (`connexion_portier`).
+- L'en-tête est **toujours ignoré** ailleurs : `/agent` (agents), `/api/…` (cookie de session ou
+  jeton `Bearer`, donc `ccs distant`, `ricochet-agent tunnel` et les scripts), `/sante`.
+- La page de connexion affiche un bouton « Se connecter via Portier » vers
+  `<url>/connexion?retour=<adresse de l'interface>`, adresse reconstruite à partir de `Host` et
+  `X-Forwarded-Proto` puis encodée en pourcentage.
+- Le bouton « Déconnexion » ferme la session du relais puis renvoie vers `deconnexion`.
+- Côté nginx, protéger par Portier **seulement** `location = /` et laisser tout le reste libre
+  en vidant l'en-tête (`proxy_set_header X-Portier-Utilisateur "";`) : voir la variante dans
+  [deploiement/nginx-ricochet.conf](deploiement/nginx-ricochet.conf).
+
 ## Configuration
 
 **Relais** (`serveur.toml`, modèle [exemples/serveur.toml](exemples/serveur.toml)) : `ecoute`
 (défaut `127.0.0.1:7870`), `base` (défaut `/var/lib/ricochet/ricochet.db`), `duree_session_h`
 (défaut 12), `cookie_securise` (défaut `true`), `intervalle_etat_s` (défaut 30),
-`jeton_operateur_sha256` et `jeton_tunnel_sha256` (facultatifs). Comptes et machines sont dans la base, pas ici.
+`jeton_operateur_sha256` et `jeton_tunnel_sha256` (facultatifs), section `[portier]` (`actif`,
+`utilisateurs`, `url`, `deconnexion` ; désactivée par défaut, voir « Mode Portier »). Comptes et machines sont dans la base, pas ici.
 
 **Agent** (`agent.toml`, modèle [exemples/agent.toml](exemples/agent.toml)) : `relais`
 (`wss://…/agent`), `id`, `jeton`, sections `[terminal]` (`commande`, `maximum`) `[fichiers]` (`utilisateur`) et `[tunnel]` (`ports`, `maximum`) facultatives.
