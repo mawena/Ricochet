@@ -15,6 +15,7 @@ mod agents;
 mod api;
 mod fichiers;
 mod terminal;
+mod tunnel;
 mod web;
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};

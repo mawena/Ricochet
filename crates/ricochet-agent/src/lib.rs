@@ -8,6 +8,8 @@ pub mod connexion;
 pub mod fichiers;
 pub mod systeme;
 pub mod terminaux;
+pub mod tunnel_client;
+pub mod tunnels;
 
 pub use config::Config;
 pub use connexion::executer;

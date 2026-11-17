@@ -20,6 +20,24 @@ pub struct Config {
     /// Accès aux fichiers : désactivé si la section `[fichiers]` est absente.
     #[serde(default)]
     pub fichiers: Option<ConfigFichiers>,
+    /// Tunnels vers des ports locaux : désactivés si la section `[tunnel]` est absente.
+    #[serde(default)]
+    pub tunnel: Option<ConfigTunnel>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigTunnel {
+    /// Ports de cette machine (127.0.0.1) qu'un tunnel peut atteindre, par exemple `[22]`
+    /// pour SSH. Aucun autre port n'est joignable.
+    pub ports: Vec<u16>,
+    /// Nombre de tunnels ouverts en même temps.
+    #[serde(default = "tunnels_par_defaut")]
+    pub maximum: usize,
+}
+
+fn tunnels_par_defaut() -> usize {
+    16
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -72,6 +90,9 @@ impl Config {
         {
             bail!("terminal.commande ne peut pas être vide");
         }
+        if config.tunnel.as_ref().is_some_and(|t| t.ports.is_empty()) {
+            bail!("tunnel.ports ne peut pas être vide");
+        }
         Ok(config)
     }
 }
@@ -89,6 +110,15 @@ mod tests {
         assert_eq!(config.id, "pc");
         assert!(config.terminal.is_none());
         assert!(config.fichiers.is_none());
+        assert!(config.tunnel.is_none());
+        let base = "relais = \"wss://e.org/agent\"\nid = \"pc\"\njeton = \"x\"\n";
+        let tunnel = Config::depuis_texte(&format!("{base}[tunnel]\nports = [22]"))
+            .unwrap()
+            .tunnel
+            .unwrap();
+        assert_eq!((tunnel.ports, tunnel.maximum), (vec![22], 16));
+        assert!(Config::depuis_texte(&format!("{base}[tunnel]\nports = []")).is_err());
+        assert!(Config::depuis_texte(&format!("{base}[tunnel]")).is_err());
         let avec = Config::depuis_texte(
             "relais = \"wss://e.org/agent\"\nid = \"pc\"\njeton = \"x\"\n[terminal]\n[fichiers]\nutilisateur = \"charles\"\n",
         )

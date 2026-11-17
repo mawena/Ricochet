@@ -172,6 +172,11 @@ impl Terminaux {
         self.ouverts.remove(&numero);
     }
 
+    /// La file des événements, que les tunnels partagent avec les terminaux.
+    pub fn evenements(&self) -> mpsc::Sender<Evenement> {
+        self.evenements.clone()
+    }
+
     pub fn nombre(&self) -> usize {
         self.ouverts.len()
     }

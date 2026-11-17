@@ -29,6 +29,8 @@ pub enum Commande {
 
 /// Nombre de terminaux ouverts en même temps sur une machine, côté relais.
 pub const TERMINAUX_MAX: usize = 8;
+/// Nombre de tunnels ouverts en même temps vers une machine, côté relais.
+pub const TUNNELS_MAX: usize = 16;
 
 /// Ce que l'agent renvoie pour un terminal, transmis au navigateur de l'opérateur.
 #[derive(Debug, PartialEq, Eq)]
@@ -57,6 +59,8 @@ struct Attente {
 /// Un terminal appartient à une session d'agent : seule celle-ci peut y écrire.
 struct TerminalOuvert {
     machine: String,
+    /// C'est un tunnel : il a sa propre limite.
+    tunnel: bool,
     session: u64,
     sortie: mpsc::Sender<EvenementTerminal>,
 }
@@ -103,6 +107,10 @@ pub enum ErreurEnvoi {
     TropDeTerminaux,
     /// L'agent ne donne pas accès à ses fichiers.
     SansFichiers,
+    /// L'agent n'ouvre pas de tunnel vers ce port.
+    SansTunnel,
+    /// Trop de tunnels ouverts vers cette machine.
+    TropDeTunnels,
 }
 
 pub fn maintenant() -> u64 {
@@ -274,24 +282,63 @@ impl Registre {
         colonnes: u16,
         lignes: u16,
     ) -> Result<(NumeroTerminal, mpsc::Receiver<EvenementTerminal>), ErreurEnvoi> {
+        self.ouvrir(id, None, |terminal| RelaisVersAgent::OuvrirTerminal {
+            terminal,
+            colonnes,
+            lignes,
+        })
+    }
+
+    /// Ouvre un tunnel vers un port local de la machine ; ses octets passent comme ceux d'un
+    /// terminal.
+    pub fn ouvrir_tunnel(
+        &self,
+        id: &str,
+        port: u16,
+    ) -> Result<(NumeroTerminal, mpsc::Receiver<EvenementTerminal>), ErreurEnvoi> {
+        self.ouvrir(id, Some(port), |tunnel| RelaisVersAgent::OuvrirTunnel {
+            tunnel,
+            port,
+        })
+    }
+
+    fn ouvrir(
+        &self,
+        id: &str,
+        port: Option<u16>,
+        ordre: impl FnOnce(NumeroTerminal) -> RelaisVersAgent,
+    ) -> Result<(NumeroTerminal, mpsc::Receiver<EvenementTerminal>), ErreurEnvoi> {
         let machines = self.machines.lock().unwrap();
         let machine = machines.get(id).ok_or(ErreurEnvoi::Deconnectee)?;
         let session = machine.session.as_ref().ok_or(ErreurEnvoi::Deconnectee)?;
-        if !machine.info.as_ref().is_some_and(|i| i.terminal) {
-            return Err(ErreurEnvoi::SansTerminal);
-        }
+        let info = machine.info.as_ref();
+        let (maximum, trop) = match port {
+            Some(port) => {
+                if !info.is_some_and(|i| i.tunnels.contains(&port)) {
+                    return Err(ErreurEnvoi::SansTunnel);
+                }
+                (TUNNELS_MAX, ErreurEnvoi::TropDeTunnels)
+            }
+            None => {
+                if !info.is_some_and(|i| i.terminal) {
+                    return Err(ErreurEnvoi::SansTerminal);
+                }
+                (TERMINAUX_MAX, ErreurEnvoi::TropDeTerminaux)
+            }
+        };
+        let tunnel = port.is_some();
         let mut terminaux = self.terminaux.lock().unwrap();
-        if terminaux.values().filter(|t| t.machine == id).count() >= TERMINAUX_MAX {
-            return Err(ErreurEnvoi::TropDeTerminaux);
+        let ouverts = terminaux
+            .values()
+            .filter(|t| t.machine == id && t.tunnel == tunnel)
+            .count();
+        if ouverts >= maximum {
+            return Err(trop);
         }
         let terminal = self.compteur_terminaux.fetch_add(1, Ordering::Relaxed) + 1;
         session
             .commandes
-            .try_send(Commande::Envoyer(RelaisVersAgent::OuvrirTerminal {
-                terminal,
-                colonnes,
-                lignes,
-            }))
+            .try_send(Commande::Envoyer(ordre(terminal)))
             .map_err(|e| match e {
                 mpsc::error::TrySendError::Full(_) => ErreurEnvoi::Saturee,
                 mpsc::error::TrySendError::Closed(_) => ErreurEnvoi::Deconnectee,
@@ -301,6 +348,7 @@ impl Registre {
             terminal,
             TerminalOuvert {
                 machine: id.to_owned(),
+                tunnel,
                 session: session.numero,
                 sortie: envoi,
             },
@@ -377,6 +425,7 @@ mod tests {
             version_agent: "v".into(),
             terminal: true,
             fichiers: true,
+            tunnels: vec![22],
         }
     }
 
@@ -486,6 +535,38 @@ mod tests {
         registre.fermer_session("pc", session);
         assert!(sortie2.try_recv().is_err());
         assert_eq!(registre.fermer_terminal(t2), None);
+    }
+
+    #[test]
+    fn tunnels() {
+        let registre = Registre::default();
+        let (_session, mut file) = registre.ouvrir_session("pc", info(), "a".into());
+        assert_eq!(
+            registre.ouvrir_tunnel("pc", 80).unwrap_err(),
+            ErreurEnvoi::SansTunnel
+        );
+        assert_eq!(
+            registre.ouvrir_tunnel("vps", 22).unwrap_err(),
+            ErreurEnvoi::Deconnectee
+        );
+        let (tunnel, _sortie) = registre.ouvrir_tunnel("pc", 22).unwrap();
+        assert!(matches!(
+            file.try_recv(),
+            Ok(Commande::Envoyer(RelaisVersAgent::OuvrirTunnel { tunnel: t, port: 22 })) if t == tunnel
+        ));
+        // Les tunnels ne prennent pas la place des terminaux, et inversement.
+        let mut gardes = Vec::new();
+        for _ in 1..TUNNELS_MAX {
+            gardes.push(registre.ouvrir_tunnel("pc", 22).unwrap());
+            let _ = file.try_recv();
+        }
+        assert_eq!(
+            registre.ouvrir_tunnel("pc", 22).unwrap_err(),
+            ErreurEnvoi::TropDeTunnels
+        );
+        assert!(registre.ouvrir_terminal("pc", 80, 24).is_ok());
+        assert_eq!(registre.fermer_terminal(tunnel).as_deref(), Some("pc"));
+        assert!(registre.ouvrir_tunnel("pc", 22).is_ok());
     }
 
     #[test]

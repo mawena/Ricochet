@@ -1,0 +1,6 @@
+# Configuration du client des tunnels : ~/.config/ricochet/client.toml (droits 600, il
+# contient le jeton). Lue par `ricochet-agent tunnel <machine>`.
+
+relais = "https://ricochet.mawena.cloud"
+# Le jeton des tunnels (`jeton_tunnel_sha256` du relais).
+jeton = "remplacer-par-le-jeton"
