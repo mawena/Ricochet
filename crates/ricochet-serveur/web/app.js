@@ -227,7 +227,7 @@ function commandeInstallation(relais, cree, utilisateur) {
       `\n[fichiers]\nutilisateur = "${utilisateur}"\n`
     : "";
   return (
-    `curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh &&\n` +
+    `curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ricochet-agent &&\n` +
     `sudo install -D -m 600 /dev/null /etc/ricochet/agent.toml &&\n` +
     `sudo tee /etc/ricochet/agent.toml >/dev/null <<'EOF' &&\n` +
     `relais = "${relais}"\nid = "${cree.id}"\njeton = "${cree.jeton}"\n${terminal}EOF\n` +

@@ -6,6 +6,18 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.2.2] - 2026-11-17
+
+### Modifié
+
+- Passage au dépôt APT unique de mawena (<https://apt.mawena.cloud>) : `ricochet-depot` devient
+  un paquet de transition qui dépend de `mawena-depot` et ne fournit plus ni la source
+  `/etc/apt/sources.list.d/ricochet.sources` (retirée proprement par `rm_conffile`) ni la clé
+  `/usr/share/keyrings/ricochet.gpg`. Un `sudo apt upgrade` suffit pour passer au nouveau dépôt.
+- Installation : README, page du site et commande « Ajouter une machine » de l'interface passent
+  par `curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ricochet-agent` ;
+  l'ancien `installer.sh` du site lance désormais celui du dépôt unique.
+
 ## [0.2.1] - 2026-11-16
 
 ### Corrigé

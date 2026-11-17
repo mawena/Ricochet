@@ -40,6 +40,10 @@ Règle : cocher une tâche **dès** qu'elle est terminée.
 - [x] 4.1 Parcourir les dossiers d'une machine
 - [x] 4.2 Envoyer et recevoir des fichiers, par morceaux, avec reprise
 
+## Transition vers le dépôt unique → release 0.2.2
+- [x] `ricochet-depot` en paquet de transition (`Depends: mawena-depot`, `rm_conffile` de l'ancienne source)
+- [x] README, site et commande d'installation de l'interface vers https://apt.mawena.cloud
+
 ## Phase 5 : supervision et actions rapides
 - [ ] 5.1 Services systemd : liste, état, démarrer, arrêter, redémarrer
 - [ ] 5.2 Redémarrer ou éteindre la machine (avec confirmation)

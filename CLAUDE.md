@@ -9,7 +9,7 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 
 ## Où on en est
 - Phases 0 à 4 faites (protocole, relais, agent, interface web, comptes Argon2 + TOTP, audit, fichiers,
-  terminal, paquets `.deb` + dépôt APT). Dernière release **0.2.1** (16/11/2026, correctif de l'écran Fichiers ; essai réel au navigateur réussi). **1.8 faite** :
+  terminal, paquets `.deb` + dépôt APT). Dernière release **0.2.2** (17/11/2026, transition vers le dépôt APT unique https://apt.mawena.cloud ; `ricochet-depot` = paquet de transition). **1.8 faite** :
   relais en ligne sur https://ricochet.mawena.cloud (paquet, vhost `/etc/nginx/sites-available/ricochet`,
   certificat certbot, compte `mawena`). **1.9 faite** : agents `mawena-cloud` (VPS) et `pc-bureau` en ligne. Phase 4 (fichiers) faite. Ensuite phase 5 (supervision, actions rapides). Voir `ROADMAP.md`.
 - Releases : `scripts/construire-deb.sh`, `gh release create` avec `dist/*`, puis
@@ -40,8 +40,8 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 - Essai de l'interface sans écran : Chromium de Playwright dans `~/.cache/ms-playwright`
   (`chrome-headless-shell --remote-debugging-pipe`, piloté en CDP par un petit script Python).
 - Paquets : `scripts/construire-deb.sh` (dpkg-deb direct, sans debhelper ; `ricochet-serveur`,
-  `ricochet-agent` en amd64, `ricochet-depot` en all pour la source APT et la clé, dont les deux
-  dépendent) ; scripts de maintenance dans `paquets/` (`#REDEMARRAGE#` remplacé par
+  `ricochet-agent` en amd64, `ricochet-depot` en all, paquet de transition depuis 0.2.2 (`Depends:
+  mawena-depot`, `rm_conffile` de l'ancienne source par `paquets/depot.*`), dont les deux dépendent) ; scripts de maintenance dans `paquets/` (`#REDEMARRAGE#` remplacé par
   `redemarrage.sh` : redémarrage différé après apt, pour ne pas tuer un apt lancé depuis un
   terminal Ricochet). `scripts/publier-apt.sh` (copie de celui de CCS) publie `dist/*.deb` et
   `site/` sur gh-pages. Clé APT `EF71E945…51C91F12` dans le trousseau du VPS (`paquets/apt/LISEZMOI`).

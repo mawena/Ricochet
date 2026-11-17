@@ -1,7 +1,11 @@
 Dépôt APT de Ricochet : https://mawena.github.io/Ricochet/apt (branche gh-pages).
 
 ricochet.gpg      clé publique de signature (format binaire, sans armure)
-ricochet.sources  source deb822 installée dans /etc/apt/sources.list.d/ par le paquet ricochet-depot
+ricochet.sources  source deb822 de l'ancien dépôt (installée par ricochet-depot jusqu'à la 0.2.1)
+
+Depuis la 0.2.2, Ricochet passe par le dépôt unique https://apt.mawena.cloud (paquet mawena-depot) ;
+ricochet-depot n'est plus qu'un paquet de transition. Ces fichiers servent encore à publier dans
+l'ancien dépôt (scripts/publier-apt.sh), gardé en ligne jusqu'à mai 2027.
 
 Clé de signature : « Ricochet APT (mawena) <57989130+mawena@users.noreply.github.com> »
 Empreinte : EF71 E945 27F9 9E6A C6CC  017C 5038 4B43 51C9 1F12

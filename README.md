@@ -25,32 +25,39 @@ consulte le journal d'audit, ouvre un **terminal** sur une machine depuis le nav
 
 ## Installation
 
-Site et dépôt APT signé : <https://mawena.github.io/Ricochet/> (Ubuntu 24.04, amd64).
+Paquets dans le dépôt APT signé unique de mawena : <https://apt.mawena.cloud/> (Ubuntu 24.04,
+amd64). Page du projet : <https://mawena.github.io/Ricochet/>.
 
 En une ligne, l'agent sur chaque machine, ou le relais sur le serveur public :
 
 ```sh
-curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh               # agent
-curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh -s serveur    # relais
+curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ricochet-agent      # agent
+curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ricochet-serveur    # relais
 ```
 
 Pas à pas (ce que fait le script) :
 
 ```sh
-sudo curl -fsSLo /usr/share/keyrings/ricochet.gpg https://mawena.github.io/Ricochet/apt/ricochet.gpg
-sudo curl -fsSLo /etc/apt/sources.list.d/ricochet.sources https://mawena.github.io/Ricochet/apt/ricochet.sources
+sudo curl -fsSLo /usr/share/keyrings/mawena-depot.gpg https://apt.mawena.cloud/mawena-depot.gpg
+sudo curl -fsSLo /etc/apt/sources.list.d/mawena-depot.sources https://apt.mawena.cloud/mawena-depot.sources
 sudo apt update
-sudo apt install ricochet-agent      # ou ricochet-serveur
+sudo apt install mawena-depot ricochet-agent      # ou ricochet-serveur
 ```
 
 Mises à jour : `sudo apt update && sudo apt upgrade`. Lancée depuis un terminal Ricochet, la
 mise à jour va jusqu'au bout : le service n'est redémarré qu'une fois apt terminé (le
 terminal se ferme alors, il suffit de le rouvrir).
 
-Trois paquets : `ricochet-agent`, `ricochet-serveur` et `ricochet-depot` (source APT et clé du
-dépôt, installé avec les deux autres). En dernier recours, les `.deb` et leurs sommes SHA-256
-sont sur la page de la [dernière version](https://github.com/mawena/Ricochet/releases/latest) :
-`sudo apt install ./ricochet-depot_*_all.deb ./ricochet-agent_*_amd64.deb`.
+Depuis la 0.2.2, une machine qui suivait l'ancien dépôt du projet
+(`https://mawena.github.io/Ricochet/apt`) passe d'elle-même au dépôt unique au premier
+`sudo apt upgrade` : `ricochet-depot` devient un paquet de transition qui installe
+`mawena-depot` et retire l'ancienne source `/etc/apt/sources.list.d/ricochet.sources`.
+
+Trois paquets : `ricochet-agent`, `ricochet-serveur` et `ricochet-depot` (paquet de transition,
+installé avec les deux autres). En dernier recours, les `.deb` et leurs sommes SHA-256 sont sur
+la page de la [dernière version](https://github.com/mawena/Ricochet/releases/latest), avec
+`mawena-depot` pris sur <https://apt.mawena.cloud/> :
+`sudo apt install ./mawena-depot_*_all.deb ./ricochet-depot_*_all.deb ./ricochet-agent_*_amd64.deb`.
 
 Depuis les sources (Rust stable récent) : `cargo build --release`, binaires dans
 `target/release/` ; `scripts/construire-deb.sh` construit les paquets dans `dist/`.
