@@ -6,6 +6,21 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.4.0] - 2026-11-17
+
+### Ajouté
+
+- **Mode Portier** de l'interface web (section `[portier]` : `actif`, `utilisateurs`, `url`,
+  `deconnexion`), désactivé par défaut. La page `/` ouvre une session sans mot de passe ni TOTP
+  quand nginx, sur la même machine (127.0.0.1 ou ::1), transmet un seul en-tête
+  `X-Portier-Utilisateur` dont la valeur est dans `utilisateurs` ; journal : `connexion_portier`.
+- L'en-tête est ignoré partout ailleurs : `/agent`, toute l'API (`/api/…`, cookie ou jeton) et
+  `/sante`.
+- Page de connexion : bouton « Se connecter via Portier » vers
+  `<url>/connexion?retour=<adresse de l'interface>` (reconstruite avec `Host` et
+  `X-Forwarded-Proto`). Déconnexion : renvoi vers `deconnexion` (`<url>/` par défaut).
+- Route `GET /api/portier` (sans connexion) ; variante nginx dans `deploiement/nginx-ricochet.conf`.
+
 ## [0.3.0] - 2026-11-17
 
 ### Ajouté

@@ -35,6 +35,69 @@ pub struct Config {
     /// Période d'envoi de l'état demandée aux agents, en secondes.
     #[serde(default = "intervalle_par_defaut")]
     pub intervalle_etat_s: u64,
+    /// Mode Portier de l'interface web (désactivé par défaut).
+    #[serde(default)]
+    pub portier: Portier,
+}
+
+/// Section `[portier]` : l'interface web fait confiance à l'en-tête `X-Portier-Utilisateur`
+/// posé par nginx après la vérification de Portier (connexion unique de mawena.cloud). Ne
+/// concerne jamais les agents ni l'API par jeton.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Portier {
+    /// Désactivé par défaut : l'en-tête est alors ignoré.
+    #[serde(default)]
+    pub actif: bool,
+    /// Noms acceptés (comptes vérifiés par Portier).
+    #[serde(default)]
+    pub utilisateurs: Vec<String>,
+    /// Adresse de Portier, par exemple `https://portier.mawena.cloud`.
+    #[serde(default)]
+    pub url: String,
+    /// Où renvoyer après la déconnexion (par défaut `<url>/`).
+    #[serde(default)]
+    pub deconnexion: Option<String>,
+}
+
+impl Portier {
+    /// Adresse de Portier sans `/` final.
+    pub fn base(&self) -> &str {
+        self.url.trim_end_matches('/')
+    }
+
+    /// Adresse vers laquelle renvoie la déconnexion.
+    pub fn adresse_deconnexion(&self) -> String {
+        match &self.deconnexion {
+            Some(adresse) => adresse.clone(),
+            None => format!("{}/", self.base()),
+        }
+    }
+
+    fn verifier(&self) -> anyhow::Result<()> {
+        if !self.actif {
+            return Ok(());
+        }
+        if !adresse_web(&self.url) {
+            bail!("[portier] url doit commencer par https:// ou http://");
+        }
+        if let Some(adresse) = &self.deconnexion
+            && !adresse_web(adresse)
+        {
+            bail!("[portier] deconnexion doit commencer par https:// ou http://");
+        }
+        if self.utilisateurs.is_empty() || self.utilisateurs.iter().any(|u| u.trim().is_empty()) {
+            bail!("[portier] utilisateurs doit donner au moins un nom, sans nom vide");
+        }
+        Ok(())
+    }
+}
+
+fn adresse_web(adresse: &str) -> bool {
+    let reste = adresse
+        .strip_prefix("https://")
+        .or_else(|| adresse.strip_prefix("http://"));
+    reste.is_some_and(|r| !r.is_empty() && !r.chars().any(|c| c.is_whitespace() || c.is_control()))
 }
 
 fn ecoute_par_defaut() -> SocketAddr {
@@ -83,7 +146,7 @@ impl Config {
         if self.duree_session_h == 0 {
             bail!("duree_session_h doit être supérieure à 0");
         }
-        Ok(())
+        self.portier.verifier()
     }
 }
 
@@ -118,6 +181,37 @@ mod tests {
         assert_eq!(config.duree_session_h, 12);
         assert!(config.cookie_securise);
         assert!(config.jeton_operateur_sha256.is_none());
+        assert!(!config.portier.actif);
+    }
+
+    #[test]
+    fn section_portier() {
+        let texte = "[portier]\nactif = true\nutilisateurs = [\"charles-gamligo\"]\n\
+                     url = \"https://portier.mawena.cloud/\"\n";
+        let config = Config::depuis_texte(texte).unwrap();
+        assert!(config.portier.actif);
+        assert_eq!(config.portier.base(), "https://portier.mawena.cloud");
+        assert_eq!(
+            config.portier.adresse_deconnexion(),
+            "https://portier.mawena.cloud/"
+        );
+        let autre = format!("{texte}deconnexion = \"https://portier.mawena.cloud/sortie\"\n");
+        assert_eq!(
+            Config::depuis_texte(&autre)
+                .unwrap()
+                .portier
+                .adresse_deconnexion(),
+            "https://portier.mawena.cloud/sortie"
+        );
+        // Activé, il faut une adresse et au moins un nom.
+        assert!(Config::depuis_texte("[portier]\nactif = true\nurl = \"https://p\"").is_err());
+        assert!(
+            Config::depuis_texte("[portier]\nactif = true\nutilisateurs = [\"a\"]\nurl = \"p\"")
+                .is_err()
+        );
+        // Désactivé, la section peut rester incomplète ; une clé inconnue est refusée.
+        assert!(Config::depuis_texte("[portier]\nactif = false").is_ok());
+        assert!(Config::depuis_texte("[portier]\nautre = 1").is_err());
     }
 
     #[test]

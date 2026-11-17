@@ -2,7 +2,8 @@
 //!
 //! Les agents s'y connectent en WebSocket sortant (`/agent`) ; l'opérateur se connecte à
 //! l'interface web (`/`) avec son mot de passe et un code TOTP, et l'interface parle à l'API
-//! (`/api/...`). Le relais écoute en local et nginx assure le HTTPS devant lui.
+//! (`/api/...`). En mode Portier (`[portier]`), la page `/` peut aussi ouvrir la session à
+//! partir de l'identité vérifiée par Portier (voir `portier.rs`). Le relais écoute en local et nginx assure le HTTPS devant lui.
 
 pub mod base;
 pub mod comptes;
@@ -14,6 +15,7 @@ pub mod totp;
 mod agents;
 mod api;
 mod fichiers;
+mod portier;
 mod terminal;
 mod tunnel;
 mod web;
@@ -40,6 +42,8 @@ pub struct Relais {
     pub registre: Registre,
     pub essais_adresse: comptes::Limiteur,
     pub essais_compte: comptes::Limiteur,
+    /// Sessions de l'interface ouvertes par Portier (en mémoire).
+    pub sessions_portier: portier::Sessions,
 }
 
 impl Relais {
@@ -50,6 +54,7 @@ impl Relais {
             registre: Registre::default(),
             essais_adresse: comptes::Limiteur::new(comptes::ECHECS_MAX_ADRESSE),
             essais_compte: comptes::Limiteur::new(comptes::ECHECS_MAX_COMPTE),
+            sessions_portier: portier::Sessions::default(),
         }
     }
 
@@ -109,6 +114,7 @@ async fn purger_sessions(relais: Arc<Relais>) {
     let mut periode = tokio::time::interval(Duration::from_secs(3600));
     loop {
         periode.tick().await;
+        relais.sessions_portier.purger(registre::maintenant());
         if let Err(erreur) = relais.base.purger_sessions(registre::maintenant()) {
             tracing::warn!("purge des sessions : {erreur:#}");
         }
