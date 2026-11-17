@@ -622,8 +622,9 @@ async function seConnecter(evenement) {
 }
 
 async function seDeconnecter() {
+  let parPortier = false;
   try {
-    await api("POST", "/deconnexion");
+    parPortier = Boolean((await api("POST", "/deconnexion"))?.portier);
   } catch {
     // Session déjà expirée : rien à faire.
   }
@@ -632,8 +633,8 @@ async function seDeconnecter() {
   fermerJeton();
   fermerTerminal();
   fermerFichiers();
-  if (portier) {
-    // La session de Portier reste ouverte tant qu'on ne s'y déconnecte pas.
+  if (portier && parPortier) {
+    // Session ouverte par Portier : la session de Portier reste ouverte tant qu'on ne s'y déconnecte pas.
     window.location.assign(portier.deconnexion);
     return;
   }

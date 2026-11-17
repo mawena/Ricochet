@@ -6,6 +6,13 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.4.1] - 2026-11-17
+
+### Corrigé
+- Mode Portier facultatif : après une connexion par mot de passe, « Se déconnecter » ne renvoie
+  plus vers la page de Portier ; seule une session ouverte par Portier y renvoie
+  (`POST /api/deconnexion` répond `{"portier": bool}`).
+
 ## [0.4.0] - 2026-11-17
 
 ### Ajouté
