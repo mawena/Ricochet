@@ -113,8 +113,9 @@ impl Sessions {
             .map(|(nom, _)| nom.clone())
     }
 
-    pub fn supprimer(&self, empreinte: &str) {
-        self.verrou().remove(empreinte);
+    /// Vrai si la session avait été ouverte par Portier.
+    pub fn supprimer(&self, empreinte: &str) -> bool {
+        self.verrou().remove(empreinte).is_some()
     }
 
     pub fn purger(&self, instant: u64) {

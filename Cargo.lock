@@ -1040,7 +1040,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "ricochet-agent"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -1064,7 +1064,7 @@ dependencies = [
 
 [[package]]
 name = "ricochet-protocole"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "data-encoding",
  "serde",
@@ -1073,7 +1073,7 @@ dependencies = [
 
 [[package]]
 name = "ricochet-serveur"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "argon2",
