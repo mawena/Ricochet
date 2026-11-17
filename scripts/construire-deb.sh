@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Construit dist/ricochet-serveur_<v>_amd64.deb, ricochet-agent_<v>_amd64.deb et ricochet-depot_<v>_all.deb
-# (source APT et clé du dépôt, dont dépendent les deux autres), les sommes SHA-256, puis passe lintian.
+# (paquet de transition vers le dépôt unique, dont dépendent les deux autres), les sommes SHA-256, puis passe lintian.
 # Usage : scripts/construire-deb.sh   (les tests se lancent à part : cargo test --workspace)
 set -euo pipefail
 
@@ -91,19 +91,21 @@ construire() {  # dossier paquet architecture
   echo "Paquet : dist/$2_${VERSION}_$3.deb"
 }
 
-# ricochet-depot : source APT et clé.
+# ricochet-depot : paquet de transition (depuis 0.2.2) vers le dépôt unique https://apt.mawena.cloud.
+# Plus de source APT ni de clé à lui : il dépend de mawena-depot, qui les installe, et retire
+# proprement l'ancien conffile /etc/apt/sources.list.d/ricochet.sources (rm_conffile).
 P="$CONSTR/ricochet-depot"
-install -d "$P/DEBIAN" "$P/etc/apt/sources.list.d" "$P/usr/share/keyrings"
-install -m 644 paquets/apt/ricochet.sources "$P/etc/apt/sources.list.d/"
-install -m 644 paquets/apt/ricochet.gpg "$P/usr/share/keyrings/"
-echo /etc/apt/sources.list.d/ricochet.sources > "$P/DEBIAN/conffiles"
+install -d "$P/DEBIAN"
 documentation "$P" ricochet-depot
-# C'est le rôle du paquet : apt upgrade suit ensuite le dépôt du projet.
-exceptions "$P" ricochet-depot "package-installs-apt-sources [etc/apt/sources.list.d/ricochet.sources]"
-controle "$P" ricochet-depot all "" "dépôt APT de Ricochet
- Source APT (https://mawena.github.io/Ricochet/apt) et clé de signature du
- dépôt de Ricochet, pour que « apt upgrade » apporte les nouvelles versions
- du relais et de l'agent."
+for s in preinst postinst postrm; do install -m 755 "paquets/depot.$s" "$P/DEBIAN/$s"; done
+# Voulu : paquet de transition (vide), et rm_conffile sans debhelper.
+exceptions "$P" ricochet-depot "empty-binary-package" "maintainer-script-should-not-use-dpkg-maintscript-helper"
+controle "$P" ricochet-depot all "mawena-depot" "paquet de transition vers le dépôt APT unique de mawena
+ Ricochet est désormais publié dans le dépôt APT unique de mawena
+ (https://apt.mawena.cloud), installé par le paquet mawena-depot. Ce paquet de
+ transition retire l'ancienne source APT de Ricochet et peut ensuite rester
+ installé sans risque."
+sed -i 's/^Section: admin$/Section: oldlibs/' "$P/DEBIAN/control"
 construire "$P" ricochet-depot all
 
 # ricochet-serveur : le relais.
