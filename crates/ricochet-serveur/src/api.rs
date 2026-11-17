@@ -275,15 +275,18 @@ async fn deconnexion(
     Extension(operateur): Extension<Operateur>,
     Adresse(adresse): Adresse,
 ) -> Resultat {
+    let mut par_portier = false;
     if let Some(session) = &operateur.session {
         relais.base.supprimer_session(session)?;
-        relais.sessions_portier.supprimer(session);
+        par_portier = relais.sessions_portier.supprimer(session);
     }
     relais.noter(Some(&operateur.compte), &adresse, "deconnexion", "");
     let cookie = format!("{}=; Path=/; Max-Age=0", nom_cookie(&relais));
+    // `portier` : la session venait de Portier, l'interface renvoie alors vers sa déconnexion
+    // (sinon la page suivante en rouvrirait une). Connexion par mot de passe : rien de plus.
     Ok((
-        StatusCode::NO_CONTENT,
         [(header::SET_COOKIE, HeaderValue::from_str(&cookie)?)],
+        Json(json!({ "portier": par_portier })),
     )
         .into_response())
 }
@@ -582,7 +585,8 @@ mod tests {
         assert_eq!(sortie.statut, 403);
         let session_csrf = [("cookie", valeur.as_str()), ("x-ricochet", "1")];
         let sortie = appeler(&relais, "POST", "/api/deconnexion", &session_csrf, None).await;
-        assert_eq!(sortie.statut, 204);
+        assert_eq!(sortie.statut, 200);
+        assert!(sortie.corps.contains("\"portier\":false"));
         assert_eq!(
             appeler(&relais, "GET", "/api/moi", &session, None)
                 .await
@@ -787,12 +791,9 @@ mod tests {
         );
 
         let sortie = [("cookie", valeur.as_str()), ("x-ricochet", "1")];
-        assert_eq!(
-            appeler(&relais, "POST", "/api/deconnexion", &sortie, None)
-                .await
-                .statut,
-            204
-        );
+        let sortie = appeler(&relais, "POST", "/api/deconnexion", &sortie, None).await;
+        assert_eq!(sortie.statut, 200);
+        assert!(sortie.corps.contains("\"portier\":true"));
         assert_eq!(
             appeler(&relais, "GET", "/api/moi", &session, None)
                 .await
