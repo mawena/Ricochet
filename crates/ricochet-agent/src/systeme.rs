@@ -7,7 +7,7 @@ use sysinfo::{Disks, System};
 const SYSTEMES_IGNORES: &[&str] = &["squashfs", "overlay", "tmpfs", "devtmpfs", "efivarfs"];
 
 /// `terminal` : l'agent accepte d'ouvrir des terminaux.
-pub fn info_machine(terminal: bool, fichiers: bool) -> InfoMachine {
+pub fn info_machine(terminal: bool, fichiers: bool, tunnels: Vec<u16>) -> InfoMachine {
     InfoMachine {
         nom_hote: System::host_name().unwrap_or_default(),
         systeme: System::long_os_version().unwrap_or_default(),
@@ -16,6 +16,7 @@ pub fn info_machine(terminal: bool, fichiers: bool) -> InfoMachine {
         version_agent: env!("CARGO_PKG_VERSION").to_owned(),
         terminal,
         fichiers,
+        tunnels,
     }
 }
 
@@ -75,7 +76,7 @@ mod tests {
 
     #[test]
     fn mesures_plausibles() {
-        let info = info_machine(true, true);
+        let info = info_machine(true, true, vec![22]);
         assert!(info.terminal);
         assert!(!info.nom_hote.is_empty());
         let etat = Collecteur::new().unwrap().etat();

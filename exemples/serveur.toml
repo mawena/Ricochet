@@ -20,3 +20,8 @@ intervalle_etat_s = 30
 # Facultatif : empreinte d'un jeton pour appeler l'API depuis un script
 # (`ricochet-serveur jeton`, puis `Authorization: Bearer <jeton>`).
 # jeton_operateur_sha256 = "empreinte-de-64-caracteres"
+
+# Facultatif : empreinte d'un jeton qui ne permet que de lister les machines et d'ouvrir des
+# tunnels (`ricochet-agent tunnel`, utilisé par CCS). Il ne donne ni terminal, ni fichiers, ni
+# gestion des machines. Même commande : `ricochet-serveur jeton`.
+# jeton_tunnel_sha256 = "empreinte-de-64-caracteres"

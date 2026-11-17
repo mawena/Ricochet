@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use axum::{
     Extension, Json, Router,
-    extract::{Path, Query, Request, State},
+    extract::{MatchedPath, Path, Query, Request, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -22,11 +22,15 @@ use serde_json::json;
 use crate::{
     Adresse, Relais, comptes, config, fichiers, jeton,
     registre::{Commande, ErreurEnvoi, VueMachine, maintenant},
-    terminal, totp,
+    terminal, totp, tunnel,
 };
 
 /// Nom du compte inscrit au journal pour les appels faits avec le jeton de la configuration.
 const COMPTE_JETON: &str = "jeton-api";
+/// Nom du compte inscrit au journal pour les appels faits avec le jeton des tunnels.
+const COMPTE_TUNNEL: &str = "jeton-tunnel";
+/// Les seules routes ouvertes au jeton des tunnels, en lecture.
+const ROUTES_TUNNEL: [&str; 2] = ["/api/machines", "/api/machines/{id}/tunnel"];
 
 /// L'opérateur authentifié d'une requête.
 #[derive(Clone)]
@@ -62,6 +66,7 @@ pub fn routeur(relais: Arc<Relais>) -> Router<Arc<Relais>> {
         .route("/machines/{id}", delete(revoquer_machine))
         .route("/machines/{id}/actualiser", post(actualiser))
         .route("/machines/{id}/terminal", get(terminal::connexion))
+        .route("/machines/{id}/tunnel", get(tunnel::connexion))
         .route(
             "/machines/{id}/fichiers",
             get(fichiers::lister).put(fichiers::envoyer),
@@ -126,12 +131,32 @@ async fn authentifier(
     suite: Next,
 ) -> Response {
     let operateur = if let Some(recu) = bearer(requete.headers()) {
-        match &relais.config.jeton_operateur_sha256 {
-            Some(empreinte) if jeton::verifier(recu, empreinte) => Some(Operateur {
+        let correspond = |empreinte: &Option<String>| {
+            empreinte
+                .as_ref()
+                .is_some_and(|empreinte| jeton::verifier(recu, empreinte))
+        };
+        if correspond(&relais.config.jeton_operateur_sha256) {
+            Some(Operateur {
                 compte: COMPTE_JETON.into(),
                 session: None,
-            }),
-            _ => None,
+            })
+        } else if correspond(&relais.config.jeton_tunnel_sha256) {
+            // Ce jeton n'ouvre que la liste des machines et les tunnels.
+            let route = requete
+                .extensions()
+                .get::<MatchedPath>()
+                .map(|r| r.as_str());
+            if requete.method() != Method::GET || !route.is_some_and(|r| ROUTES_TUNNEL.contains(&r))
+            {
+                return (StatusCode::FORBIDDEN, "ce jeton n'ouvre que les tunnels").into_response();
+            }
+            Some(Operateur {
+                compte: COMPTE_TUNNEL.into(),
+                session: None,
+            })
+        } else {
+            None
         }
     } else if let Some(valeur) = cookie_recu(&relais, requete.headers()) {
         let empreinte = jeton::empreinte(&valeur);

@@ -5,7 +5,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use futures_util::{SinkExt, StreamExt};
 use ricochet_agent::{
     Config,
-    config::ConfigTerminal,
+    config::{ConfigTerminal, ConfigTunnel},
     connexion::{Fin, session},
     systeme::Collecteur,
 };
@@ -15,11 +15,14 @@ use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest, http::H
 
 /// Jeton de l'API pour les essais du terminal.
 const JETON_OPERATEUR: &str = "jeton-operateur";
+/// Jeton qui n'ouvre que les tunnels.
+const JETON_TUNNEL: &str = "jeton-tunnel";
 
 async fn demarrer_relais() -> (String, Arc<Relais>) {
     let config = ricochet_serveur::Config::depuis_texte(&format!(
-        "intervalle_etat_s = 1\njeton_operateur_sha256 = \"{}\"",
-        jeton::empreinte(JETON_OPERATEUR)
+        "intervalle_etat_s = 1\njeton_operateur_sha256 = \"{}\"\njeton_tunnel_sha256 = \"{}\"",
+        jeton::empreinte(JETON_OPERATEUR),
+        jeton::empreinte(JETON_TUNNEL)
     ))
     .unwrap();
     let base = Base::en_memoire();
@@ -54,6 +57,7 @@ fn agent(relais: &str, jeton: &str) -> Config {
             maximum: 2,
         }),
         fichiers: Some(Default::default()),
+        tunnel: None,
     }
 }
 
@@ -336,4 +340,149 @@ async fn fichiers_de_bout_en_bout() {
     let actions = serde_json::to_string(&audit).unwrap();
     assert!(actions.contains("fichier_recu") && actions.contains("fichier_telecharge"));
     std::fs::remove_dir_all(dossier).unwrap();
+}
+
+/// Ouvre un tunnel vers un port de « pc » avec le jeton donné.
+async fn ouvrir_tunnel(
+    url_agent: &str,
+    port: u16,
+    jeton: &str,
+) -> Result<
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    tokio_tungstenite::tungstenite::Error,
+> {
+    let url = url_agent.replace("/agent", &format!("/api/machines/pc/tunnel?port={port}"));
+    let mut requete = url.into_client_request().unwrap();
+    requete.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_str(&format!("Bearer {jeton}")).unwrap(),
+    );
+    Ok(tokio_tungstenite::connect_async(requete).await?.0)
+}
+
+/// Statut de la réponse du relais à une requête faite avec le jeton des tunnels.
+async fn statut_avec_jeton_tunnel(relais: &Arc<Relais>, methode: &str, chemin: &str) -> u16 {
+    use tower::ServiceExt;
+    let requete = axum::http::Request::builder()
+        .method(methode)
+        .uri(chemin)
+        .header("authorization", format!("Bearer {JETON_TUNNEL}"))
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let reponse = application(relais.clone()).oneshot(requete).await.unwrap();
+    reponse.status().as_u16()
+}
+
+#[tokio::test]
+async fn tunnel_de_bout_en_bout() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    // Un service local sur la machine : il répond en majuscules et ferme sur « fin ».
+    let ecoute = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = ecoute.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((mut flux, _)) = ecoute.accept().await {
+            tokio::spawn(async move {
+                let mut tampon = vec![0; 1 << 16];
+                while let Ok(n) = flux.read(&mut tampon).await {
+                    if n == 0 || &tampon[..n] == b"fin" {
+                        break;
+                    }
+                    let reponse = tampon[..n].to_ascii_uppercase();
+                    if flux.write_all(&reponse).await.is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+
+    let (url, relais) = demarrer_relais().await;
+    let mut config = agent(&url, "secret-pc");
+    config.tunnel = Some(ConfigTunnel {
+        ports: vec![port],
+        maximum: 4,
+    });
+    tokio::spawn(async move { session(&config, &mut Collecteur::new().unwrap()).await });
+    attendre_connexion(&relais).await;
+
+    // Le jeton des tunnels liste les machines et ouvre des tunnels, rien d'autre.
+    assert_eq!(
+        statut_avec_jeton_tunnel(&relais, "GET", "/api/machines").await,
+        200
+    );
+    for (methode, chemin) in [
+        ("GET", "/api/audit"),
+        ("GET", "/api/machines/pc/fichiers?chemin=/"),
+        ("GET", "/api/machines/pc/terminal"),
+        ("POST", "/api/machines"),
+        ("DELETE", "/api/machines/pc"),
+    ] {
+        assert_eq!(
+            statut_avec_jeton_tunnel(&relais, methode, chemin).await,
+            403,
+            "{methode} {chemin}"
+        );
+    }
+    assert!(ouvrir_tunnel(&url, port, "faux-jeton").await.is_err());
+
+    // Un port que la machine n'a pas autorisé : le tunnel se ferme tout de suite.
+    let mut refuse = ouvrir_tunnel(&url, 1, JETON_TUNNEL).await.unwrap();
+    match refuse.next().await {
+        Some(Ok(Message::Close(Some(trame)))) => {
+            assert!(
+                trame.reason.as_str().starts_with("port non autorisé"),
+                "{}",
+                trame.reason
+            )
+        }
+        autre => panic!("{autre:?}"),
+    }
+
+    let mut ws = ouvrir_tunnel(&url, port, JETON_TUNNEL).await.unwrap();
+    // Plus gros qu'une lecture : les octets arrivent en plusieurs morceaux, dans l'ordre.
+    let envoi: Vec<u8> = (0..100_000u32).map(|i| b'a' + (i % 26) as u8).collect();
+    ws.send(Message::binary(envoi.clone())).await.unwrap();
+    let mut recu = Vec::new();
+    let fermeture = loop {
+        let message = tokio::time::timeout(Duration::from_secs(10), ws.next())
+            .await
+            .expect("le tunnel doit répondre")
+            .unwrap()
+            .unwrap();
+        match message {
+            Message::Binary(octets) => {
+                recu.extend_from_slice(&octets);
+                if recu.len() == envoi.len() {
+                    ws.send(Message::binary(&b"fin"[..])).await.unwrap();
+                }
+            }
+            Message::Close(trame) => break trame.unwrap(),
+            _ => {}
+        }
+    };
+    assert_eq!(recu, envoi.to_ascii_uppercase());
+    assert_eq!(fermeture.reason.as_str(), "connexion fermée par la machine");
+
+    for _ in 0..20 {
+        let journal = relais.base.journal(10).unwrap();
+        let actions: Vec<&str> = journal.iter().map(|l| l.action.as_str()).collect();
+        if actions.contains(&"tunnel_ferme") {
+            assert!(actions.contains(&"tunnel_ouvert"), "{actions:?}");
+            assert!(actions.contains(&"tunnel_refuse"), "{actions:?}");
+            let ouvert = journal
+                .iter()
+                .find(|l| l.action == "tunnel_ouvert")
+                .unwrap();
+            assert_eq!(ouvert.compte.as_deref(), Some("jeton-tunnel"));
+            assert!(
+                ouvert.detail.starts_with(&format!("pc port {port} ")),
+                "{}",
+                ouvert.detail
+            );
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    panic!("la fermeture du tunnel doit être journalisée");
 }
