@@ -4,35 +4,35 @@ Hash: SHA512
 Architectures: all amd64
 Codename: stable
 Components: main
-Date: Tue, 17 Nov 2026 09:22:37 +0000
+Date: Tue, 17 Nov 2026 10:03:48 +0000
 Description: Ricochet, contrôle à distance
 Label: Ricochet
 Origin: Ricochet
 Suite: stable
 MD5Sum:
- 464ad79615d6d117a658fc19faa24420             4661 main/binary-all/Packages
- fcda844908c82080b851cfc1a015cb20             1346 main/binary-all/Packages.gz
- 1792d2edffac6890a69164ba52ce2fb5            15695 main/binary-amd64/Packages
- f62c9e498289ece4b1f3c835c617eb9e             3184 main/binary-amd64/Packages.gz
+ 2e52849aa21d19c7091a99b91708740c             5445 main/binary-all/Packages
+ 94f2306505cbc2a8f97286cf4140e4f6             1462 main/binary-all/Packages.gz
+ 7e27c36691cf4f633eb41aae146e5581            18318 main/binary-amd64/Packages
+ 98af095f7de01b41f33b6433649d41ae             3531 main/binary-amd64/Packages.gz
 SHA1:
- ce3fd119f9eda8557b3de9cda9d8715abad0e088             4661 main/binary-all/Packages
- 20085aeac20b206300555d940a586547b4d6f743             1346 main/binary-all/Packages.gz
- 118461a0a7749378bc94c1d80b6e34c079f65d4a            15695 main/binary-amd64/Packages
- b31e1ca7f1918bf53a070a9582b86a1be112d6c2             3184 main/binary-amd64/Packages.gz
+ 3960cbdb4dbe4cacfe0b3fcb1395c7eb95f94f0c             5445 main/binary-all/Packages
+ e1db8a1a21b9b2ec7236e29602414a0dbdf685da             1462 main/binary-all/Packages.gz
+ dcd69f0f837b23d8640f6565200402b4488a77c3            18318 main/binary-amd64/Packages
+ 7e06e88636048d7fe2451d28a3e6b1c6343b3b27             3531 main/binary-amd64/Packages.gz
 SHA256:
- b719abec4cda647786cc91255c1ff1f7d0bb60dd8368efae7fdad18c42d15812             4661 main/binary-all/Packages
- 2f10595b7186a6893b9e6b1c9d253002d47924bb757ea11517508b0558491b5f             1346 main/binary-all/Packages.gz
- c243c01409ee264dbd777cf14aced617a1d92f616dd28f0b31db677e11495ad1            15695 main/binary-amd64/Packages
- 424058d6b3ea40d05dc4a74f5d84ae61a3beb452463426f818a493bd326ee2d2             3184 main/binary-amd64/Packages.gz
+ 52ac622a9d46013c6f033dffe2d7a69e1f25def79222db74ea66038c59e5a38f             5445 main/binary-all/Packages
+ 5073e89e46ce7bd4632f6c7015863ec86f92d682418dd734e1e62c80100f1be7             1462 main/binary-all/Packages.gz
+ 9bfdf45f510e039b427eda4addd05f57d1a69828214fcc726e674b3c1d70102e            18318 main/binary-amd64/Packages
+ 7dfef3d56cab82978a05c38201a4805577be405e0888289599ab1e0bd09edddf             3531 main/binary-amd64/Packages.gz
 SHA512:
- e293b60d1c10796ab7efc40b87c4eecb3b331e614e99a4fe1b96c8ba4e6459404fc51462207c97523232c660065542f95e1b14282c89155844e5c57704aa27ff             4661 main/binary-all/Packages
- 46d86da648c22271fd56c5efa37803ecc3f2bb430722c1b44dc7502b6bd62fb1c8a487719e1654003733bf0cc4322363b3b6cef505daeb6e70f4e36d1309eda7             1346 main/binary-all/Packages.gz
- 38bceaa963f457c760c96915ae1c50ed9f786c9cd625b1950e9994a394112b74ea9e71e3149e21416bb56ef92409273fb41070a24a504d58eab8d8841482ff63            15695 main/binary-amd64/Packages
- 881cb6c9e429df2b0e3345ed1f1d8286f49d6c1c979745e4809b143d318ee1eb9d335c8da02a2cdb079fc7a1b3cac9ca9fe67586f9549b41a306a07886d44d07             3184 main/binary-amd64/Packages.gz
+ 667ce013f6dde453107ea2fa03becbe389880ecfa3bd86dce0332ed38e23cf8de8fdd4601dc03e53a2b3bfc1e89ca4c3f02d393f8d03caaeabfe76f2166f0af7             5445 main/binary-all/Packages
+ dfafe10dc4ce289239e1d53c53d41a1daec2c8664ceef6ef0497bbe28f7c02ba568c3cd7e49c5b783400f4456ea9b9475ef5fb22c7d9aa96ad06411a69b98cdb             1462 main/binary-all/Packages.gz
+ 4581331219d93aefe20bac01c7aa7acfebb934f995f00da76053b2d95f6aa45c29f3a1bb75bb42a02d9abcd53aee9edde7c7872f3d07f4016fafe9b7a42c3d7c            18318 main/binary-amd64/Packages
+ e2c18fdea57f65b3c3ef9839ce9bfc04b7a66beb572a6508ca9faa543a91756a24066cb13c69d8446b58b2df5032f2759e129d1dd208a79449f0eb80e79c18fe             3531 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYKAB0WIQTvcelFJ/measbMAXxQOEtDUckfEgUCavwc3QAKCRBQOEtDUckf
-EqeYAQDOZmtCLzFdRXyBMlGqRTWsINOUCbotv2SGoNJr+y7sBgD/R+b4QbXl1UOy
-yw2I71v45MNej6iBhjJ55ZOxL6XipwI=
-=b3TW
+iHUEARYKAB0WIQTvcelFJ/measbMAXxQOEtDUckfEgUCavwmhAAKCRBQOEtDUckf
+ErUvAP9Nr0hDQDQG7g8Wr8pyUihdzRuaIX/9gjXsLo3Lt1lUNQD8Da3uj6F/KXgb
+qoYa2pGWQ55i6+dsdAgtaV6FGBsusw4=
+=sNIi
 -----END PGP SIGNATURE-----
