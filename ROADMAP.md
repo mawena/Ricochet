@@ -61,7 +61,7 @@ tunnel est dans l'audit. La partie CCS est dans sa feuille de route (phase 21).
 - [x] 4b.4 Relais : `jeton_tunnel_sha256`, jeton limité à la liste des machines et aux tunnels
 - [x] 4b.5 Client : `ricochet-agent tunnel <machine>` (pour `ssh -o ProxyCommand`), `~/.config/ricochet/client.toml`
 - [x] 4b.6 Tests de bout en bout, essai réel (`ssh` et `rsync` de 50 Mo par un relais local), documentation
-- [ ] 4b.7 Release 0.3.0, dépôt APT
+- [x] 4b.7 Release 0.3.0, dépôt APT
 - [ ] 4b.8 Par Charles : mettre à jour relais et agents, créer le jeton des tunnels, activer `[tunnel]` et SSH sur `pc-bureau`
 
 ## Phase 5 : supervision et actions rapides

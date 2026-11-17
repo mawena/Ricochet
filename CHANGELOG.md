@@ -6,6 +6,8 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.3.0] - 2026-11-17
+
 ### Ajouté
 
 - **Tunnels** : `ricochet-agent tunnel <machine>` relie son entrée et sa sortie standard à un
