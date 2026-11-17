@@ -1,0 +1,5 @@
+#!/bin/sh
+# ricochet-depot est devenu un paquet de transition (0.2.2) : la source APT du projet laisse
+# la place à celle du dépôt unique (paquet mawena-depot). Retrait propre de l'ancien conffile.
+set -e
+dpkg-maintscript-helper rm_conffile /etc/apt/sources.list.d/ricochet.sources 0.2.2~ -- "$@"
