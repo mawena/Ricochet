@@ -1,14 +1,13 @@
 #!/bin/sh
-# Installe Ricochet depuis son dépôt APT signé : https://mawena.github.io/Ricochet/
+# Installe Ricochet depuis le dépôt APT unique de mawena : https://apt.mawena.cloud/
 #   curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh               (l'agent)
 #   curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh -s serveur    (le relais)
-# Il fait exactement les trois étapes de la page : clé du dépôt, dépôt, installation. Ensuite,
-# `sudo apt upgrade` apporte les nouvelles versions.
+# Il lance l'installateur du dépôt unique avec le bon paquet ; c'est l'équivalent de
+#   curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ricochet-agent
+# Ensuite, `sudo apt upgrade` apporte les nouvelles versions.
 set -eu
 
-DEPOT=https://mawena.github.io/Ricochet/apt
-CLE=/usr/share/keyrings/ricochet.gpg
-SOURCE=/etc/apt/sources.list.d/ricochet.sources
+INSTALLATEUR=https://apt.mawena.cloud/installer.sh
 
 case "${1:-agent}" in
   agent) PAQUET=ricochet-agent ;;
@@ -16,7 +15,7 @@ case "${1:-agent}" in
   *) echo "Ricochet : « agent » ou « serveur » attendu, pas « $1 »." >&2; exit 2 ;;
 esac
 if [ "$(id -u)" -ne 0 ]; then
-  echo "Ricochet : à lancer en administrateur, par exemple : curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh" >&2
+  echo "Ricochet : à lancer en administrateur, par exemple : curl -fsSL $INSTALLATEUR | sudo sh -s -- $PAQUET" >&2
   exit 1
 fi
 if ! command -v apt-get >/dev/null 2>&1; then
@@ -28,20 +27,13 @@ if [ "$(dpkg --print-architecture)" != amd64 ]; then
   exit 1
 fi
 
-telecharger() {   # adresse fichier
-  if command -v curl >/dev/null 2>&1; then curl -fsSL "$1" -o "$2"
-  elif command -v wget >/dev/null 2>&1; then wget -qO "$2" "$1"
-  else echo "Ricochet : il faut curl ou wget." >&2; exit 1
-  fi
-}
-
-echo "1/3 Clé du dépôt -> $CLE"
-telecharger "$DEPOT/ricochet.gpg" "$CLE.tmp" && chmod 644 "$CLE.tmp" && mv "$CLE.tmp" "$CLE"
-echo "2/3 Dépôt -> $SOURCE"
-telecharger "$DEPOT/ricochet.sources" "$SOURCE.tmp" && chmod 644 "$SOURCE.tmp" && mv "$SOURCE.tmp" "$SOURCE"
-echo "3/3 Installation de $PAQUET"
-apt-get update
-apt-get install -y "$PAQUET"
+SCRIPT="$(mktemp)"
+trap 'rm -f "$SCRIPT"' EXIT
+if command -v curl >/dev/null 2>&1; then curl -fsSL "$INSTALLATEUR" -o "$SCRIPT"
+elif command -v wget >/dev/null 2>&1; then wget -qO "$SCRIPT" "$INSTALLATEUR"
+else echo "Ricochet : il faut curl ou wget." >&2; exit 1
+fi
+sh "$SCRIPT" "$PAQUET"
 echo
 if [ "$PAQUET" = ricochet-agent ]; then
   echo "Agent installé. Écrire /etc/ricochet/agent.toml (droits 600) avec la configuration donnée"

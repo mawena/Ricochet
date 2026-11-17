@@ -29,15 +29,15 @@
     <div class="installation-courte">
       <p>L'agent, sur chaque machine (Ubuntu 24.04, amd64) :</p>
       <div class="commande">
-        <pre><code id="cmd-courte">curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh</code></pre>
+        <pre><code id="cmd-courte">curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ricochet-agent</code></pre>
         <button type="button" class="copier" data-cible="cmd-courte">Copier</button>
       </div>
       <p>Le relais, sur le serveur public :</p>
       <div class="commande">
-        <pre><code id="cmd-relais">curl -fsSL https://mawena.github.io/Ricochet/installer.sh | sudo sh -s serveur</code></pre>
+        <pre><code id="cmd-relais">curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ricochet-serveur</code></pre>
         <button type="button" class="copier" data-cible="cmd-relais">Copier</button>
       </div>
-      <p class="nuance">Le script ajoute le dépôt APT signé puis installe le paquet ; <a href="#installer">les commandes qu'il lance</a> sont détaillées plus bas, pour qui préfère les taper soi-même.</p>
+      <p class="nuance">Le script ajoute le <a href="https://apt.mawena.cloud/">dépôt APT signé de mawena</a> (dépôt unique de tous ses paquets) puis installe le paquet ; <a href="#installer">les commandes qu'il lance</a> sont détaillées plus bas, pour qui préfère les taper soi-même.</p>
     </div>
   </section>
 
@@ -81,16 +81,16 @@
     <ol class="pas">
       <li>
         <p>Ajouter la clé qui signe le dépôt :</p>
-        <div class="commande"><pre><code id="cmd-cle">sudo curl -fsSLo /usr/share/keyrings/ricochet.gpg https://mawena.github.io/Ricochet/apt/ricochet.gpg</code></pre><button type="button" class="copier" data-cible="cmd-cle">Copier</button></div>
+        <div class="commande"><pre><code id="cmd-cle">sudo curl -fsSLo /usr/share/keyrings/mawena-depot.gpg https://apt.mawena.cloud/mawena-depot.gpg</code></pre><button type="button" class="copier" data-cible="cmd-cle">Copier</button></div>
       </li>
       <li>
-        <p>Ajouter le dépôt :</p>
-        <div class="commande"><pre><code id="cmd-source">sudo curl -fsSLo /etc/apt/sources.list.d/ricochet.sources https://mawena.github.io/Ricochet/apt/ricochet.sources</code></pre><button type="button" class="copier" data-cible="cmd-source">Copier</button></div>
+        <p>Ajouter le dépôt (<a href="https://apt.mawena.cloud/">apt.mawena.cloud</a>, dépôt unique des paquets de mawena) :</p>
+        <div class="commande"><pre><code id="cmd-source">sudo curl -fsSLo /etc/apt/sources.list.d/mawena-depot.sources https://apt.mawena.cloud/mawena-depot.sources</code></pre><button type="button" class="copier" data-cible="cmd-source">Copier</button></div>
       </li>
       <li>
         <p>Installer l'agent sur chaque machine, ou le relais sur le serveur :</p>
-        <div class="commande"><pre><code id="cmd-installer">sudo apt update &amp;&amp; sudo apt install ricochet-agent</code></pre><button type="button" class="copier" data-cible="cmd-installer">Copier</button></div>
-        <div class="commande"><pre><code id="cmd-serveur">sudo apt update &amp;&amp; sudo apt install ricochet-serveur</code></pre><button type="button" class="copier" data-cible="cmd-serveur">Copier</button></div>
+        <div class="commande"><pre><code id="cmd-installer">sudo apt update &amp;&amp; sudo apt install mawena-depot ricochet-agent</code></pre><button type="button" class="copier" data-cible="cmd-installer">Copier</button></div>
+        <div class="commande"><pre><code id="cmd-serveur">sudo apt update &amp;&amp; sudo apt install mawena-depot ricochet-serveur</code></pre><button type="button" class="copier" data-cible="cmd-serveur">Copier</button></div>
       </li>
       <li>
         <p>Relais : mettre nginx devant (modèle dans <code>/usr/share/doc/ricochet-serveur/nginx-ricochet.conf</code>), puis créer votre compte :</p>
@@ -101,13 +101,13 @@
         <div class="commande"><pre><code id="cmd-agent">sudo systemctl start ricochet-agent</code></pre><button type="button" class="copier" data-cible="cmd-agent">Copier</button></div>
       </li>
     </ol>
-    <p>Sans le dépôt : téléchargez les paquets <code>.deb</code> et leurs sommes de contrôle sur la page de la <a href="https://github.com/mawena/Ricochet/releases/latest">dernière version</a>, puis <code>sudo apt install ./ricochet-depot_*_all.deb ./ricochet-agent_*_amd64.deb</code>. Le paquet <code>ricochet-depot</code> ajoute le dépôt : les mises à jour suivantes passent ensuite par <code>sudo apt upgrade</code>.</p>
+    <p>Sans le dépôt : téléchargez les paquets <code>.deb</code> et leurs sommes de contrôle sur la page de la <a href="https://github.com/mawena/Ricochet/releases/latest">dernière version</a>, avec <code>mawena-depot</code> (sur <a href="https://apt.mawena.cloud/">apt.mawena.cloud</a>), puis <code>sudo apt install ./mawena-depot_*_all.deb ./ricochet-depot_*_all.deb ./ricochet-agent_*_amd64.deb</code>. Le paquet <code>mawena-depot</code> ajoute le dépôt : les mises à jour suivantes passent ensuite par <code>sudo apt upgrade</code>.</p>
   </section>
 </main>
 
 <footer class="pied">
   <p>Ricochet est un logiciel libre sous licence MIT, écrit par <a href="https://github.com/mawena">mawena</a>.</p>
-  <p>Clé du dépôt APT : <code>EF71 E945 27F9 9E6A C6CC 017C 5038 4B43 51C9 1F12</code></p>
+  <p>Clé du dépôt APT unique : <code>60A2 0BB2 21C9 1DAD F39D D55B 456B 0129 30FA 901D</code> (ancien dépôt de Ricochet : <code>EF71 E945 27F9 9E6A C6CC 017C 5038 4B43 51C9 1F12</code>)</p>
 </footer>
 
 <script src="ricochet.js" defer></script>

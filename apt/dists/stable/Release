@@ -1,28 +1,28 @@
 Architectures: all amd64
 Codename: stable
 Components: main
-Date: Mon, 16 Nov 2026 19:33:42 +0000
+Date: Tue, 17 Nov 2026 09:22:37 +0000
 Description: Ricochet, contrôle à distance
 Label: Ricochet
 Origin: Ricochet
 Suite: stable
 MD5Sum:
- 64fe4f8e6f1f4ba71c84a6a3af992e08             3290 main/binary-all/Packages
- 9212397376c5065bbccd85c1df794ffa              883 main/binary-all/Packages.gz
- 83a69d334353f21b4ff253d679cc22dc            12485 main/binary-amd64/Packages
- b8f3a98337192dbd923c339b3a27e5b5             2508 main/binary-amd64/Packages.gz
+ 464ad79615d6d117a658fc19faa24420             4661 main/binary-all/Packages
+ fcda844908c82080b851cfc1a015cb20             1346 main/binary-all/Packages.gz
+ 1792d2edffac6890a69164ba52ce2fb5            15695 main/binary-amd64/Packages
+ f62c9e498289ece4b1f3c835c617eb9e             3184 main/binary-amd64/Packages.gz
 SHA1:
- 815bb0ea28a7df30c1a15780f8fb1edd801b7823             3290 main/binary-all/Packages
- 36b99798fa93a546d3a7f4b0ae1eb9b57fa9c650              883 main/binary-all/Packages.gz
- ec5d7ba1a5e4a96a451b8e10cb0a466d4ea8aa22            12485 main/binary-amd64/Packages
- d265b281c19fce753d410159ffa599718313831f             2508 main/binary-amd64/Packages.gz
+ ce3fd119f9eda8557b3de9cda9d8715abad0e088             4661 main/binary-all/Packages
+ 20085aeac20b206300555d940a586547b4d6f743             1346 main/binary-all/Packages.gz
+ 118461a0a7749378bc94c1d80b6e34c079f65d4a            15695 main/binary-amd64/Packages
+ b31e1ca7f1918bf53a070a9582b86a1be112d6c2             3184 main/binary-amd64/Packages.gz
 SHA256:
- ec1733737ecd2cb1a9c6c7e3eb777b48366a6f0dae37ca3c5c0acc924b1d0b91             3290 main/binary-all/Packages
- a450cb38b0a8ec5a5edb9e9a5f56b9fa4f7581f7e3f94c6ebb0f6f25e8db1daa              883 main/binary-all/Packages.gz
- c7f16122c490e26b482091da057542b3fbbcdb25c5efd85caee2d47b453d26a2            12485 main/binary-amd64/Packages
- b76636d45f3b9106257b4239503004d7ef4856cbd6799e0d747c436df9397327             2508 main/binary-amd64/Packages.gz
+ b719abec4cda647786cc91255c1ff1f7d0bb60dd8368efae7fdad18c42d15812             4661 main/binary-all/Packages
+ 2f10595b7186a6893b9e6b1c9d253002d47924bb757ea11517508b0558491b5f             1346 main/binary-all/Packages.gz
+ c243c01409ee264dbd777cf14aced617a1d92f616dd28f0b31db677e11495ad1            15695 main/binary-amd64/Packages
+ 424058d6b3ea40d05dc4a74f5d84ae61a3beb452463426f818a493bd326ee2d2             3184 main/binary-amd64/Packages.gz
 SHA512:
- b609d8cd8f0c9311b5fa288464e397c9306fb4c5f843555618bfb70d5a9717aef6f897ad71fbd5a3073081cdff3185288d1f17a31f88155ab3a7d1806fe40174             3290 main/binary-all/Packages
- 9c651685350564260809f8b87dfa16244dd34154859809280b71e42ba67a61bad3ac362a8ee005dbdd240c23007de079a7d4df11406738dd23ed96f01ab72d71              883 main/binary-all/Packages.gz
- 0a75e6e06316b7817d8b304451722a510732c6aeaa862afcef75e92da8f4019e564bdd2bb3ad843bfacc598cd504bc9cc103fa700bcb6cd40f05efe52edad5c8            12485 main/binary-amd64/Packages
- 477d777dafbe49d1e92a9dcffb84904a232d2d5c6025c62f5fcc33fbfdaa3673185d8eb53212965da2c099f28065fd3fa14e3df61f862869f05f186faab0d803             2508 main/binary-amd64/Packages.gz
+ e293b60d1c10796ab7efc40b87c4eecb3b331e614e99a4fe1b96c8ba4e6459404fc51462207c97523232c660065542f95e1b14282c89155844e5c57704aa27ff             4661 main/binary-all/Packages
+ 46d86da648c22271fd56c5efa37803ecc3f2bb430722c1b44dc7502b6bd62fb1c8a487719e1654003733bf0cc4322363b3b6cef505daeb6e70f4e36d1309eda7             1346 main/binary-all/Packages.gz
+ 38bceaa963f457c760c96915ae1c50ed9f786c9cd625b1950e9994a394112b74ea9e71e3149e21416bb56ef92409273fb41070a24a504d58eab8d8841482ff63            15695 main/binary-amd64/Packages
+ 881cb6c9e429df2b0e3345ed1f1d8286f49d6c1c979745e4809b143d318ee1eb9d335c8da02a2cdb079fc7a1b3cac9ca9fe67586f9549b41a306a07886d44d07             3184 main/binary-amd64/Packages.gz

@@ -1,3 +1,18 @@
+Package: mawena-depot
+Version: 0.2.1
+Architecture: all
+Maintainer: Charles GAMLIGO <57989130+mawena@users.noreply.github.com>
+Filename: pool/main/mawena-depot_0.2.1_all.deb
+Size: 1456
+MD5sum: 75a80b4230e73d0a1149b97dfd7c134c
+SHA1: 3281064f498200da981ca66e897ca567bdfd94aa
+SHA256: 90284010c5703a18bc5796ea5610e6440e32f0008753c7b91c9c5ec8d001ea89
+Section: misc
+Priority: optional
+Description: source APT et clé du dépôt mawena
+ Installe la source https://apt.mawena.cloud (Paquets Ubuntu de mawena) et la clé
+ qui signe ses index, pour que apt upgrade apporte les nouvelles versions.
+
 Package: ricochet-agent
 Version: 0.1.0
 Architecture: amd64
@@ -98,6 +113,26 @@ Description: agent de Ricochet, contrôle à distance de machines
  configuration le permet, ouvre des terminaux à la demande de l'opérateur.
  Configuration : /etc/ricochet/agent.toml, donnée par l'interface du relais.
 
+Package: ricochet-agent
+Version: 0.2.2
+Architecture: amd64
+Maintainer: mawena <57989130+mawena@users.noreply.github.com>
+Installed-Size: 5236
+Depends: libc6 (>= 2.39), libgcc-s1, ricochet-depot (= 0.2.2)
+Filename: pool/main/ricochet-agent_0.2.2_amd64.deb
+Size: 1737592
+MD5sum: 780e740aae389cb4dceb16f7c6b4b52f
+SHA1: 047a30abb17ca9da7eca75d241bf7cfef05716aa
+SHA256: ab32729be43046c2cd6ddfece6fe9f73b25e320ef3ef1e32a4af2010d8eb9dfc
+Section: admin
+Priority: optional
+Homepage: https://mawena.github.io/Ricochet/
+Description: agent de Ricochet, contrôle à distance de machines
+ L'agent ouvre une connexion sortante chiffrée vers le relais de Ricochet, lui
+ envoie l'état de la machine (processeur, mémoire, disques) et, si sa
+ configuration le permet, ouvre des terminaux à la demande de l'opérateur.
+ Configuration : /etc/ricochet/agent.toml, donnée par l'interface du relais.
+
 Package: ricochet-depot
 Version: 0.1.0
 Architecture: all
@@ -187,6 +222,26 @@ Description: dépôt APT de Ricochet
  Source APT (https://mawena.github.io/Ricochet/apt) et clé de signature du
  dépôt de Ricochet, pour que « apt upgrade » apporte les nouvelles versions
  du relais et de l'agent.
+
+Package: ricochet-depot
+Version: 0.2.2
+Architecture: all
+Maintainer: mawena <57989130+mawena@users.noreply.github.com>
+Installed-Size: 40
+Depends: mawena-depot
+Filename: pool/main/ricochet-depot_0.2.2_all.deb
+Size: 2456
+MD5sum: 98fb128cfec77c9925648876bbcc5be3
+SHA1: bd93b51f031c5d70fb51e34159c72c35879b9dfb
+SHA256: 7bd073a0dda71258843e9140609fed3fda1269fffd2ab6e85be2a12460c16ff0
+Section: oldlibs
+Priority: optional
+Homepage: https://mawena.github.io/Ricochet/
+Description: paquet de transition vers le dépôt APT unique de mawena
+ Ricochet est désormais publié dans le dépôt APT unique de mawena
+ (https://apt.mawena.cloud), installé par le paquet mawena-depot. Ce paquet de
+ transition retire l'ancienne source APT de Ricochet et peut ensuite rester
+ installé sans risque.
 
 Package: ricochet-serveur
 Version: 0.1.0
@@ -283,6 +338,27 @@ Size: 2313032
 MD5sum: 3620f457581164424305c96de39a624b
 SHA1: fd0659070e2aa8e42d94593656324d2a31c70b03
 SHA256: 3b9b34fad755bb584e2c847b08a02781e83dfb87b03fce5ce0c2151cca2b7992
+Section: admin
+Priority: optional
+Homepage: https://mawena.github.io/Ricochet/
+Description: relais de Ricochet, contrôle à distance de machines
+ Ricochet commande des machines à distance, même sans adresse IP publique :
+ chaque machine fait tourner un agent qui se connecte au relais par une
+ connexion sortante (WebSocket sur TLS). Ce paquet installe le relais, son
+ interface web (état des machines, terminal dans le navigateur, journal
+ d'audit) et son service systemd. nginx assure le HTTPS devant lui.
+
+Package: ricochet-serveur
+Version: 0.2.2
+Architecture: amd64
+Maintainer: mawena <57989130+mawena@users.noreply.github.com>
+Installed-Size: 6784
+Depends: libc6 (>= 2.34), libgcc-s1, adduser, ricochet-depot (= 0.2.2)
+Filename: pool/main/ricochet-serveur_0.2.2_amd64.deb
+Size: 2313772
+MD5sum: 356161abff4b7f197456b4aeeff068ca
+SHA1: 7341d4319a80518198c2501ea6d229c0c90a0648
+SHA256: 3bdddf1f06779ecc09eeda6d210809b4f74fa4da704700c066b5e4fcc14ed7f2
 Section: admin
 Priority: optional
 Homepage: https://mawena.github.io/Ricochet/
