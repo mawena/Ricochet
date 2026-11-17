@@ -22,6 +22,9 @@ pub struct InfoMachine {
     /// L'agent donne accès à ses fichiers (option `[fichiers]` de sa configuration).
     #[serde(default)]
     pub fichiers: bool,
+    /// Ports locaux vers lesquels l'agent accepte d'ouvrir un tunnel (option `[tunnel]`).
+    #[serde(default)]
+    pub tunnels: Vec<u16>,
 }
 
 /// Numéro d'un terminal, attribué par le relais.
@@ -193,7 +196,11 @@ pub enum RelaisVersAgent {
         colonnes: u16,
         lignes: u16,
     },
-    /// Ce que l'opérateur tape dans le terminal.
+    /// Ouvrir un tunnel vers un port local de la machine (127.0.0.1). Un tunnel partage les
+    /// numéros des terminaux et leurs messages : `Entree` et `Sortie` portent ses octets,
+    /// `FermerTerminal` et `TerminalFerme` le ferment.
+    OuvrirTunnel { tunnel: NumeroTerminal, port: u16 },
+    /// Ce que l'opérateur tape dans le terminal, ou ce qu'il envoie dans le tunnel.
     Entree {
         terminal: NumeroTerminal,
         #[serde(with = "base64")]
@@ -259,6 +266,7 @@ mod tests {
             version_agent: "0.1.0".into(),
             terminal: true,
             fichiers: true,
+            tunnels: vec![22],
         }
     }
 
@@ -345,6 +353,18 @@ mod tests {
         .unwrap();
         assert!(!info.terminal);
         assert!(!info.fichiers);
+        assert!(info.tunnels.is_empty());
+    }
+
+    #[test]
+    fn tunnel() {
+        let ordre = RelaisVersAgent::OuvrirTunnel {
+            tunnel: 4,
+            port: 22,
+        };
+        let texte = encoder(&ordre);
+        assert_eq!(texte, r#"{"type":"ouvrir_tunnel","tunnel":4,"port":22}"#);
+        assert_eq!(decoder::<RelaisVersAgent>(&texte).unwrap(), ordre);
     }
 
     #[test]

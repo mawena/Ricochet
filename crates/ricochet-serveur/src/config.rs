@@ -22,6 +22,10 @@ pub struct Config {
     /// les scripts. Absent : seules les sessions de l'interface ouvrent l'API.
     #[serde(default)]
     pub jeton_operateur_sha256: Option<String>,
+    /// Empreinte SHA-256 d'un jeton qui ne permet que de lister les machines et d'ouvrir des
+    /// tunnels (pour un outil comme CCS) : ni terminal, ni fichiers, ni gestion des machines.
+    #[serde(default)]
+    pub jeton_tunnel_sha256: Option<String>,
     /// Durée de vie d'une session de l'interface, en heures.
     #[serde(default = "duree_session_par_defaut")]
     pub duree_session_h: u64,
@@ -70,6 +74,9 @@ impl Config {
         if let Some(empreinte) = &self.jeton_operateur_sha256 {
             verifier_empreinte("jeton_operateur_sha256", empreinte)?;
         }
+        if let Some(empreinte) = &self.jeton_tunnel_sha256 {
+            verifier_empreinte("jeton_tunnel_sha256", empreinte)?;
+        }
         if self.intervalle_etat_s == 0 {
             bail!("intervalle_etat_s doit être supérieur à 0");
         }
@@ -117,6 +124,8 @@ mod tests {
     fn erreurs_detectees() {
         assert!(Config::depuis_texte(&format!("jeton_operateur_sha256 = \"{H}\"")).is_ok());
         assert!(Config::depuis_texte("jeton_operateur_sha256 = \"court\"").is_err());
+        assert!(Config::depuis_texte(&format!("jeton_tunnel_sha256 = \"{H}\"")).is_ok());
+        assert!(Config::depuis_texte("jeton_tunnel_sha256 = \"court\"").is_err());
         assert!(Config::depuis_texte("duree_session_h = 0").is_err());
         assert!(Config::depuis_texte("autre = 1").is_err());
         // Les machines ne se déclarent plus dans la configuration.

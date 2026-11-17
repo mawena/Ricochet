@@ -15,3 +15,11 @@ jeton = "remplacer-par-le-jeton"
 # reçus lui appartiennent ; sans, il agit en root.
 # [fichiers]
 # utilisateur = "charles"
+
+# Tunnels : retirer les « # » pour permettre de joindre des ports locaux de cette machine en
+# passant par le relais (`ricochet-agent tunnel <machine>` depuis une autre machine). Seuls les
+# ports listés sont joignables, sur 127.0.0.1. Avec 22 : SSH, donc aussi rsync et scp ; c'est
+# alors le serveur SSH de la machine qui décide qui entre (clés autorisées).
+# [tunnel]
+# ports = [22]
+# maximum = 16

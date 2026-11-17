@@ -9,7 +9,7 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 
 ## Où on en est
 - Phases 0 à 4 faites (protocole, relais, agent, interface web, comptes Argon2 + TOTP, audit, fichiers,
-  terminal, paquets `.deb` + dépôt APT). Dernière release **0.2.2** (17/11/2026, transition vers le dépôt APT unique https://apt.mawena.cloud ; `ricochet-depot` = paquet de transition). **1.8 faite** :
+  terminal, paquets `.deb` + dépôt APT). Dernière release **0.3.0** (17/11/2026, tunnels pour SSH et rsync ; 0.2.2 : transition vers le dépôt APT unique https://apt.mawena.cloud ; `ricochet-depot` = paquet de transition). **1.8 faite** :
   relais en ligne sur https://ricochet.mawena.cloud (paquet, vhost `/etc/nginx/sites-available/ricochet`,
   certificat certbot, compte `mawena`). **1.9 faite** : agents `mawena-cloud` (VPS) et `pc-bureau` en ligne. Phase 4 (fichiers) faite. Ensuite phase 5 (supervision, actions rapides). Voir `ROADMAP.md`.
 - Releases : `scripts/construire-deb.sh`, `gh release create` avec `dist/*`, puis
@@ -36,6 +36,10 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
   fil si `[fichiers] utilisateur`, envoi dans `<nom>.ricochet-partiel` puis renommage), relais
   `fichiers.rs` (requêtes numérotées dans le registre, réponse par oneshot, téléchargement en
   flux avec `Range`) ; capacité annoncée par `InfoMachine.fichiers`, protocole toujours en v1.
+- Tunnels (0.3.0) : agent `tunnels.rs` (TCP vers 127.0.0.1, ports de `[tunnel]`), relais
+  `tunnel.rs` ; un tunnel partage numéros et messages des terminaux (`Entree`, `Sortie`,
+  `FermerTerminal`, `TerminalFerme`). Client `tunnel_client.rs` (`ricochet-agent tunnel`, pour
+  `ssh -o ProxyCommand`). `jeton_tunnel_sha256` : jeton limité (routes de `ROUTES_TUNNEL`).
 - `crates/ricochet-agent/tests/bout_en_bout.rs` : vrai relais + vrai agent sur 127.0.0.1.
 - Essai de l'interface sans écran : Chromium de Playwright dans `~/.cache/ms-playwright`
   (`chrome-headless-shell --remote-debugging-pipe`, piloté en CDP par un petit script Python).

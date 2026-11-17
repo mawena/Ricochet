@@ -138,7 +138,30 @@ appartiennent. Le bouton « Fichiers » ouvre le dossier personnel ; un fichier 
 dans `<nom>.ricochet-partiel` puis renommé à la fin, et un envoi interrompu reprend où il s'est
 arrêté (renvoyer le même fichier).
 
-### 5. API
+### 5. Tunnels (SSH, rsync)
+
+Un tunnel relie une commande lancée sur une machine à un port local d'une autre, en passant par
+le relais : de quoi faire du SSH (donc `rsync`, `scp`, des commandes à distance) vers un PC sans
+IP publique. C'est ce qu'utilise CCS pour lancer des travaux sur les autres machines.
+
+1. **Machine à joindre** : ajouter à `/etc/ricochet/agent.toml` la section `[tunnel]` avec
+   `ports = [22]`, puis `sudo systemctl restart ricochet-agent`. Seuls ces ports sont joignables,
+   sur 127.0.0.1 ; le serveur SSH de la machine garde le dernier mot (clés autorisées).
+2. **Relais** : `ricochet-serveur jeton` donne un jeton et son empreinte ; écrire l'empreinte
+   dans `jeton_tunnel_sha256` de `serveur.toml` et redémarrer le relais. Ce jeton ne permet que
+   de lister les machines et d'ouvrir des tunnels.
+3. **Machine d'où l'on part** : écrire `~/.config/ricochet/client.toml` (droits 600, modèle
+   [exemples/client.toml](exemples/client.toml)) avec `relais` et `jeton`, puis :
+
+```sh
+ssh -o ProxyCommand="ricochet-agent tunnel %h" -o HostKeyAlias=ricochet-pc-bureau charles@pc-bureau
+rsync -e 'ssh -o ProxyCommand="ricochet-agent tunnel %h"' -a projet/ charles@pc-bureau:projet/
+```
+
+`ricochet-agent tunnel <machine> [--port 22] [--config <fichier>]` relie son entrée et sa sortie
+standard au port. Chaque ouverture, refus et fermeture de tunnel est dans le journal d'audit.
+
+### 6. API
 
 L'interface s'appuie sur l'API ; un script peut l'appeler avec un jeton (`ricochet-serveur
 jeton`, empreinte dans `jeton_operateur_sha256`) :
@@ -160,6 +183,7 @@ curl -H "Authorization: Bearer <jeton>" https://ricochet.mawena.cloud/api/machin
 | `DELETE /api/machines/{id}` | révoque la machine (`204`, `404`) |
 | `POST /api/machines/{id}/actualiser` | demande un état à jour (`202`, `404` inconnue, `409` déconnectée) |
 | `GET /api/machines/{id}/terminal?colonnes=80&lignes=24` | WebSocket du terminal (voir ci-dessous) |
+| `GET /api/machines/{id}/tunnel?port=22` | WebSocket d'un tunnel vers un port local de la machine (trames binaires dans les deux sens ; la trame de fermeture porte la raison) |
 | `GET /api/machines/{id}/fichiers?chemin=~` | contenu d'un dossier `{chemin, entrees, tronque}` (`403` fichiers désactivés, `409` déconnectée, `422` erreur de la machine) |
 | `GET /api/machines/{id}/fichiers/telecharger?chemin=…` | le fichier (`Range: bytes=N-` pour reprendre) |
 | `PUT /api/machines/{id}/fichiers?chemin=…&decalage=N&fin=true` | corps = morceau de 512 Kio au plus → `{taille}` du fichier partiel |
@@ -178,10 +202,13 @@ accepté que si son en-tête `Origin` est celui du relais.
 **Relais** (`serveur.toml`, modèle [exemples/serveur.toml](exemples/serveur.toml)) : `ecoute`
 (défaut `127.0.0.1:7870`), `base` (défaut `/var/lib/ricochet/ricochet.db`), `duree_session_h`
 (défaut 12), `cookie_securise` (défaut `true`), `intervalle_etat_s` (défaut 30),
-`jeton_operateur_sha256` (facultatif). Comptes et machines sont dans la base, pas ici.
+`jeton_operateur_sha256` et `jeton_tunnel_sha256` (facultatifs). Comptes et machines sont dans la base, pas ici.
 
 **Agent** (`agent.toml`, modèle [exemples/agent.toml](exemples/agent.toml)) : `relais`
-(`wss://…/agent`), `id`, `jeton`, sections `[terminal]` (`commande`, `maximum`) et `[fichiers]` (`utilisateur`) facultatives.
+(`wss://…/agent`), `id`, `jeton`, sections `[terminal]` (`commande`, `maximum`) `[fichiers]` (`utilisateur`) et `[tunnel]` (`ports`, `maximum`) facultatives.
+
+**Client des tunnels** (`~/.config/ricochet/client.toml`, modèle
+[exemples/client.toml](exemples/client.toml)) : `relais` (`https://…`), `jeton`.
 
 Les journaux suivent `RUST_LOG` (défaut `info`).
 

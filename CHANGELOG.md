@@ -6,6 +6,22 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.3.0] - 2026-11-17
+
+### Ajouté
+
+- **Tunnels** : `ricochet-agent tunnel <machine>` relie son entrée et sa sortie standard à un
+  port local d'une autre machine, en passant par le relais. Avec le port 22, SSH marche vers un
+  PC sans IP publique (`ssh -o ProxyCommand="ricochet-agent tunnel %h" …`), donc aussi `rsync`
+  et `scp`. C'est la base du calcul réparti de CCS (lancer un build sur une autre machine).
+- Agent : section `[tunnel]` (`ports`, `maximum`), absente par défaut. Seuls les ports listés
+  sont joignables, et seulement sur 127.0.0.1.
+- Relais : route `GET /api/machines/{id}/tunnel?port=N` (WebSocket) ; ouvertures, refus et
+  fermetures de tunnels dans le journal d'audit.
+- Relais : `jeton_tunnel_sha256`, un jeton qui ne permet que de lister les machines et d'ouvrir
+  des tunnels (ni terminal, ni fichiers, ni gestion des machines).
+- Client : fichier `~/.config/ricochet/client.toml` (`relais`, `jeton`).
+
 ## [0.2.2] - 2026-11-17
 
 ### Modifié

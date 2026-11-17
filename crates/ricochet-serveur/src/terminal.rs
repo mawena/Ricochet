@@ -50,7 +50,7 @@ fn lignes_par_defaut() -> u16 {
 
 /// Un navigateur ouvre ce WebSocket depuis n'importe quel site s'il le veut : seule
 /// l'interface du relais est acceptée. Sans `Origin`, ce n'est pas un navigateur.
-fn origine_acceptee(entetes: &HeaderMap) -> bool {
+pub(crate) fn origine_acceptee(entetes: &HeaderMap) -> bool {
     let Some(origine) = entetes.get(header::ORIGIN) else {
         return true;
     };
@@ -83,7 +83,7 @@ pub(crate) async fn connexion(
         .on_upgrade(move |socket| session(socket, relais, operateur, adresse, id, taille)))
 }
 
-async fn fermer(mut socket: WebSocket, raison: &str) {
+pub(crate) async fn fermer(mut socket: WebSocket, raison: &str) {
     // Une raison de fermeture tient en 123 octets.
     let mut fin = raison.len().min(120);
     while !raison.is_char_boundary(fin) {
@@ -112,7 +112,10 @@ async fn session(
         Err(erreur) => {
             let raison = match erreur {
                 ErreurEnvoi::Deconnectee => "machine déconnectée",
-                ErreurEnvoi::Saturee | ErreurEnvoi::SansFichiers => "machine occupée, réessayer",
+                ErreurEnvoi::Saturee
+                | ErreurEnvoi::SansFichiers
+                | ErreurEnvoi::SansTunnel
+                | ErreurEnvoi::TropDeTunnels => "machine occupée, réessayer",
                 ErreurEnvoi::SansTerminal => {
                     "terminal désactivé sur cette machine (section [terminal] de l'agent)"
                 }
