@@ -40,6 +40,24 @@ Règle : cocher une tâche **dès** qu'elle est terminée.
 - [x] 4.1 Parcourir les dossiers d'une machine
 - [x] 4.2 Envoyer et recevoir des fichiers, par morceaux, avec reprise
 
+## Phase 4 bis : exécution à distance (pour CCS) → release 0.3.0
+
+Demande de Charles du 17/11/2026 : CCS doit pouvoir se servir de la puissance de toutes les
+machines (exemple : un build Flutter sur `pc-bureau` quand Flutter n'est pas sur le VPS). Choix
+validés : droit donné **machine par machine** (case « calcul »), commandes lancées sous
+l'utilisateur de la machine, dans un dossier de travail dédié, tout écrit dans l'audit ; le code
+arrive par les **fichiers de Ricochet** (pas par git). La partie CCS est dans sa feuille de route
+(phase 21).
+
+- [ ] 4b.1 Protocole : lancer une commande sans terminal (programme, arguments, dossier, variables, durée maximale), sortie en flux, code de retour, arrêt demandé ; capacité annoncée par `InfoMachine`
+- [ ] 4b.2 Agent : `[calcul]` dans la configuration (désactivé par défaut, utilisateur, dossier de travail, nombre de commandes à la fois) ; commandes confinées à ce dossier de travail, tuées à la durée maximale ou à la déconnexion
+- [ ] 4b.3 Agent : inventaire annoncé au relais (outils présents et versions : flutter, cargo, node, docker… ; cœurs, mémoire et charge déjà connus)
+- [ ] 4b.4 Relais : `POST /api/machines/<id>/commandes` (lancer), flux de sortie, arrêt, liste ; refus si la machine n'a pas la case « calcul » ; chaque commande dans l'audit
+- [ ] 4b.5 Relais : jeton d'API réservé au calcul (créé et révoqué dans l'interface, stocké en SHA-256), distinct du jeton opérateur : il ne donne ni terminal ni gestion des machines
+- [ ] 4b.6 Interface : case « calcul » par machine, liste des commandes en cours et passées, bouton d'arrêt
+- [ ] 4b.7 Fichiers : envoyer et rapatrier un dossier entier en une archive (pour le code et les résultats d'un build)
+- [ ] 4b.8 Tests de bout en bout (vrai relais, vrai agent), documentation, release 0.3.0, dépôt APT
+
 ## Phase 5 : supervision et actions rapides
 - [ ] 5.1 Services systemd : liste, état, démarrer, arrêter, redémarrer
 - [ ] 5.2 Redémarrer ou éteindre la machine (avec confirmation)
