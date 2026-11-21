@@ -9,7 +9,7 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
 
 ## Où on en est
 - Phases 0 à 4 faites (protocole, relais, agent, interface web, comptes Argon2 + TOTP, audit, fichiers,
-  terminal, paquets `.deb` + dépôt APT). Dernière release **0.4.1** (17/11/2026, déconnexion en mode Portier facultatif ; 0.3.0 : tunnels pour SSH et rsync ; 0.2.2 : transition vers le dépôt APT unique https://apt.mawena.cloud ; `ricochet-depot` = paquet de transition). **1.8 faite** :
+  terminal, paquets `.deb` + dépôt APT). Dernière release **0.6.0** (applis web des machines ; avant : 0.5.0 messages et Web Push ; 0.4.1 du 17/11/2026, déconnexion en mode Portier facultatif ; 0.3.0 : tunnels pour SSH et rsync ; 0.2.2 : transition vers le dépôt APT unique https://apt.mawena.cloud ; `ricochet-depot` = paquet de transition). **1.8 faite** :
   relais en ligne sur https://ricochet.mawena.cloud (paquet, vhost `/etc/nginx/sites-available/ricochet`,
   certificat certbot, compte `mawena`). **1.9 faite** : agents `mawena-cloud` (VPS) et `pc-bureau` en ligne. Phase 4 (fichiers) faite. Ensuite phase 5 (supervision, actions rapides). Voir `ROADMAP.md`.
 - Releases : `scripts/construire-deb.sh`, `gh release create` avec `dist/*`, puis
@@ -49,6 +49,12 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
   (`DemandeDetail`/`Detail`). Interface : `web/sw.js` (push, clic), vue Messages de `app.js`.
   Protocole toujours en v1 (champs `#[serde(default)]`). p256/hkdf/aes-gcm en génération 0.13/0.12/0.10
   (avec `sha2` 0.10 à côté du 0.11 du reste).
+- Applications web (0.6.0) : agent `applis.rs` (hyper en client HTTP/1 vers 127.0.0.1, port de
+  `[applis.<nom>]` seulement, en-têtes configurés ajoutés, réponse découpée en `CorpsAppli`),
+  relais `applis.rs` (route `/api/machines/{id}/applis/{nom}/…` hors de `contre_csrf` : `Origin`
+  = `Host` exigé pour les écritures ; registre `applis` par numéro de requête ; `Garde` envoie
+  `AnnulerAppli` quand le navigateur part). Aucune donnée gardée ; audit `appli_ouverte` (une
+  fois par 10 min) et `appli_refusee`. Test : `tests/applis_bout_en_bout.rs`.
 - `crates/ricochet-agent/tests/bout_en_bout.rs` : vrai relais + vrai agent sur 127.0.0.1 ;
   `messages_bout_en_bout.rs` : idem pour les messages, avec un faux service de push qui déchiffre.
 - Essai de l'interface sans écran : Chromium de Playwright dans `~/.cache/ms-playwright`
