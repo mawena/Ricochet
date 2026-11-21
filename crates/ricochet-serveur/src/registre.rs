@@ -10,8 +10,8 @@ use std::{
 };
 
 use ricochet_protocole::{
-    EtatMachine, InfoMachine, NumeroRequete, NumeroTerminal, OrdreFichiers, RelaisVersAgent,
-    ReponseFichiers,
+    EntetesHttp, EtatMachine, InfoMachine, NumeroRequete, NumeroTerminal, OrdreFichiers,
+    RelaisVersAgent, ReponseFichiers,
 };
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
@@ -32,6 +32,28 @@ pub const TERMINAUX_MAX: usize = 8;
 /// Nombre de tunnels ouverts en même temps vers une machine, côté relais.
 pub const TUNNELS_MAX: usize = 16;
 
+/// Requêtes vers des applications web ouvertes en même temps sur une machine, côté relais.
+pub const APPLIS_MAX: usize = 32;
+
+/// Ce que l'agent renvoie pour une requête vers une application web.
+#[derive(Debug, PartialEq, Eq)]
+pub enum EvenementAppli {
+    Entete {
+        statut: u16,
+        entetes: EntetesHttp,
+    },
+    Corps(Vec<u8>),
+    /// Fin de la réponse ; `Some` : échec (requête ratée, ou corps interrompu).
+    Fin(Option<String>),
+}
+
+/// Une requête vers une application, propre à une session d'agent.
+struct AppliOuverte {
+    machine: String,
+    session: u64,
+    evenements: mpsc::Sender<EvenementAppli>,
+}
+
 /// Ce que l'agent renvoie pour un terminal, transmis au navigateur de l'opérateur.
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvenementTerminal {
@@ -48,6 +70,7 @@ pub struct Registre {
     requetes: Mutex<HashMap<NumeroRequete, Attente>>,
     compteur_requetes: AtomicU64,
     details: Mutex<HashMap<NumeroRequete, AttenteDetail>>,
+    applis: Mutex<HashMap<NumeroRequete, AppliOuverte>>,
 }
 
 /// Réponse d'un agent à une demande de détail : le texte, ou la raison de son absence.
@@ -107,6 +130,15 @@ pub struct VueMachine {
     pub etat_recu_le: Option<u64>,
 }
 
+/// Une requête HTTP vers une application web de la machine.
+pub struct DemandeAppli {
+    pub methode: String,
+    /// Chemin et requête, commençant par `/`.
+    pub chemin: String,
+    pub entetes: EntetesHttp,
+    pub corps: Vec<u8>,
+}
+
 /// Erreur d'envoi d'une commande à une machine.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ErreurEnvoi {
@@ -124,6 +156,10 @@ pub enum ErreurEnvoi {
     SansTunnel,
     /// Trop de tunnels ouverts vers cette machine.
     TropDeTunnels,
+    /// L'agent ne déclare pas cette application (ou ne sait pas en transmettre).
+    SansAppli,
+    /// Trop de requêtes vers des applications ouvertes sur cette machine.
+    TropDApplis,
 }
 
 pub fn maintenant() -> u64 {
@@ -189,6 +225,10 @@ impl Registre {
             .lock()
             .unwrap()
             .retain(|_, r| !(r.machine == id && r.session == numero));
+        self.applis
+            .lock()
+            .unwrap()
+            .retain(|_, r| !(r.machine == id && r.session == numero));
     }
 
     fn modifier(&self, id: &str, numero: u64, action: impl FnOnce(&mut Machine)) {
@@ -231,6 +271,7 @@ impl Registre {
             .retain(|_, t| t.machine != id);
         self.requetes.lock().unwrap().retain(|_, r| r.machine != id);
         self.details.lock().unwrap().retain(|_, r| r.machine != id);
+        self.applis.lock().unwrap().retain(|_, r| r.machine != id);
     }
 
     /// Envoie un ordre sur les fichiers à la machine ; la réponse arrivera dans le récepteur
@@ -349,6 +390,94 @@ impl Registre {
     /// Oublie une demande de détail restée sans réponse.
     pub fn oublier_detail(&self, demande: NumeroRequete) {
         self.details.lock().unwrap().remove(&demande);
+    }
+
+    /// Envoie une requête HTTP à une application web déclarée par l'agent ; la réponse arrivera
+    /// dans la file renvoyée (fermée si la session de l'agent se termine avant).
+    pub fn ouvrir_appli(
+        &self,
+        id: &str,
+        appli: &str,
+        requete: DemandeAppli,
+    ) -> Result<(NumeroRequete, mpsc::Receiver<EvenementAppli>), ErreurEnvoi> {
+        let machines = self.machines.lock().unwrap();
+        let machine = machines.get(id).ok_or(ErreurEnvoi::Deconnectee)?;
+        let session = machine.session.as_ref().ok_or(ErreurEnvoi::Deconnectee)?;
+        if !machine
+            .info
+            .as_ref()
+            .is_some_and(|i| i.applis.iter().any(|a| a.nom == appli))
+        {
+            return Err(ErreurEnvoi::SansAppli);
+        }
+        let mut applis = self.applis.lock().unwrap();
+        if applis.values().filter(|a| a.machine == id).count() >= APPLIS_MAX {
+            return Err(ErreurEnvoi::TropDApplis);
+        }
+        let numero = self.compteur_requetes.fetch_add(1, Ordering::Relaxed) + 1;
+        let (envoi, reception) = mpsc::channel(16);
+        // Enregistrée avant l'envoi : la réponse ne peut pas arriver avant.
+        applis.insert(
+            numero,
+            AppliOuverte {
+                machine: id.to_owned(),
+                session: session.numero,
+                evenements: envoi,
+            },
+        );
+        let envoye = session
+            .commandes
+            .try_send(Commande::Envoyer(RelaisVersAgent::RequeteAppli {
+                requete: numero,
+                appli: appli.to_owned(),
+                methode: requete.methode,
+                chemin: requete.chemin,
+                entetes: requete.entetes,
+                corps: requete.corps,
+            }));
+        if let Err(e) = envoye {
+            applis.remove(&numero);
+            return Err(match e {
+                mpsc::error::TrySendError::Full(_) => ErreurEnvoi::Saturee,
+                mpsc::error::TrySendError::Closed(_) => ErreurEnvoi::Deconnectee,
+            });
+        }
+        Ok((numero, reception))
+    }
+
+    /// Où transmettre ce que l'agent renvoie pour une requête, si elle vient bien de sa session.
+    pub fn sortie_appli(
+        &self,
+        id: &str,
+        session: u64,
+        requete: NumeroRequete,
+    ) -> Option<mpsc::Sender<EvenementAppli>> {
+        let applis = self.applis.lock().unwrap();
+        let ouverte = applis.get(&requete)?;
+        (ouverte.machine == id && ouverte.session == session).then(|| ouverte.evenements.clone())
+    }
+
+    /// Termine une requête vers une application ; renvoie sa file si elle était encore ouverte.
+    pub fn fin_appli(
+        &self,
+        id: &str,
+        session: u64,
+        requete: NumeroRequete,
+    ) -> Option<mpsc::Sender<EvenementAppli>> {
+        let mut applis = self.applis.lock().unwrap();
+        if applis
+            .get(&requete)
+            .is_some_and(|a| a.machine == id && a.session == session)
+        {
+            return applis.remove(&requete).map(|a| a.evenements);
+        }
+        None
+    }
+
+    /// Oublie une requête vers une application (le navigateur est parti) ; renvoie sa machine
+    /// si elle était encore ouverte : l'agent est alors à prévenir.
+    pub fn oublier_appli(&self, requete: NumeroRequete) -> Option<String> {
+        Some(self.applis.lock().unwrap().remove(&requete)?.machine)
     }
 
     /// Oublie une requête restée sans réponse.
@@ -509,6 +638,7 @@ mod tests {
             fichiers: true,
             tunnels: vec![22],
             messages: true,
+            applis: Vec::new(),
         }
     }
 

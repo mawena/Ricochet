@@ -13,14 +13,14 @@ use axum::{
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{any, delete, get, post},
 };
 use ricochet_protocole::RelaisVersAgent;
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::{
-    Adresse, Relais, comptes, config, fichiers, jeton, messages, portier, push,
+    Adresse, Relais, applis, comptes, config, fichiers, jeton, messages, portier, push,
     registre::{Commande, ErreurEnvoi, VueMachine, maintenant},
     terminal, totp, tunnel,
 };
@@ -85,12 +85,24 @@ pub fn routeur(relais: Arc<Relais>) -> Router<Arc<Relais>> {
         .route("/push/abonnements/{id}", delete(push::retirer))
         .route("/push/essai", post(push::essai))
         .route("/audit", get(audit))
+        .layer(middleware::from_fn_with_state(relais.clone(), authentifier));
+    // Applications web : leurs pages ne portent pas `X-Ricochet`, la vérification de l'origine
+    // remplace `contre_csrf` (voir `applis.rs`).
+    let applis = Router::new()
+        .route("/machines/{id}/applis/{nom}", any(applis::racine))
+        .route("/machines/{id}/applis/{nom}/", any(applis::requete))
+        .route(
+            "/machines/{id}/applis/{nom}/{*chemin}",
+            any(applis::requete),
+        )
+        .layer(middleware::from_fn(applis::origine_exigee))
         .layer(middleware::from_fn_with_state(relais, authentifier));
     Router::new()
         .route("/connexion", post(connexion))
         .route("/portier", get(infos_portier))
         .merge(protegees)
         .layer(middleware::from_fn(contre_csrf))
+        .merge(applis)
 }
 
 /// Nom du cookie de session : le préfixe `__Host-` l'attache au seul domaine du relais, en HTTPS.

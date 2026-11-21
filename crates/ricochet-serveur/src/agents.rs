@@ -18,7 +18,7 @@ use ricochet_protocole::{
 
 use crate::{
     Adresse, Relais, jeton,
-    registre::{Commande, EvenementTerminal},
+    registre::{Commande, EvenementAppli, EvenementTerminal},
 };
 
 /// Délai laissé à l'agent pour se présenter.
@@ -212,6 +212,25 @@ async fn boucle(
                                 tracing::error!("accusé de réponse : {erreur:#}");
                             }
                         }
+                        Ok(AgentVersRelais::EnteteAppli { requete, statut, entetes }) => {
+                            if !transmettre_appli(relais, id, numero, requete, EvenementAppli::Entete { statut, entetes }).await
+                                && !envoyer(socket, &RelaisVersAgent::AnnulerAppli { requete }).await
+                            {
+                                return;
+                            }
+                        }
+                        Ok(AgentVersRelais::CorpsAppli { requete, donnees }) => {
+                            if !transmettre_appli(relais, id, numero, requete, EvenementAppli::Corps(donnees)).await
+                                && !envoyer(socket, &RelaisVersAgent::AnnulerAppli { requete }).await
+                            {
+                                return;
+                            }
+                        }
+                        Ok(AgentVersRelais::FinAppli { requete, erreur }) => {
+                            if let Some(file) = relais.registre.fin_appli(id, numero, requete) {
+                                let _ = tokio::time::timeout(DELAI_TERMINAL, file.send(EvenementAppli::Fin(erreur))).await;
+                            }
+                        }
                         Ok(AgentVersRelais::Bonjour { .. }) => {
                             tracing::warn!("agent « {id} » : second bonjour ignoré");
                         }
@@ -223,4 +242,27 @@ async fn boucle(
             }
         }
     }
+}
+
+/// Transmet un évènement d'une application au navigateur. `false` : le navigateur ne suit plus
+/// (parti, ou trop lent) et la requête est oubliée ; l'agent est alors à prévenir. Une requête
+/// déjà oubliée (`AnnulerAppli` envoyé) ne donne pas lieu à un second ordre.
+async fn transmettre_appli(
+    relais: &Relais,
+    id: &str,
+    numero: u64,
+    requete: ricochet_protocole::NumeroRequete,
+    evenement: EvenementAppli,
+) -> bool {
+    let Some(file) = relais.registre.sortie_appli(id, numero, requete) else {
+        return true;
+    };
+    let envoi = file.send(evenement);
+    if matches!(
+        tokio::time::timeout(DELAI_TERMINAL, envoi).await,
+        Ok(Ok(()))
+    ) {
+        return true;
+    }
+    relais.registre.oublier_appli(requete).is_none()
 }

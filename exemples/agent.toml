@@ -33,3 +33,13 @@ jeton = "remplacer-par-le-jeton"
 # socket = "/run/ricochet-agent/messages.sock"
 # conservation_jours = 30                 # durée de garde des messages et détails sur la machine
 # dossier_etat = "/var/lib/ricochet-agent"   # file d'attente persistante (0700)
+
+# Applications web locales ouvertes depuis l'interface du relais (voir le README, « Applications
+# web des machines ») : une section par application, retirer les « # » pour l'activer. Seuls les
+# ports déclarés sont joignables, sur 127.0.0.1. Les en-têtes sont ajoutés à chaque requête : le
+# jeton d'accès reste sur la machine (ce fichier est en 0600).
+# [applis.cofiticket]
+# port = 8790
+# libelle = "CofiTicket"
+# [applis.cofiticket.entetes]
+# Cookie = "cofiticket=<jeton>"

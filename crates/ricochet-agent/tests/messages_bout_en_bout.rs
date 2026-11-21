@@ -262,6 +262,7 @@ fn config_agent(banc: &Banc) -> Config {
         fichiers: None,
         tunnel: None,
         messages: Some(config_messages(&banc.dossier, vec![])),
+        applis: Default::default(),
     }
 }
 

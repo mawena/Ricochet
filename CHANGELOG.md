@@ -6,6 +6,26 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+### Ajouté
+- **Applications web des machines** : une application qui écoute sur 127.0.0.1 (par exemple la
+  fenêtre de CofiTicket) s'ouvre depuis l'interface de Ricochet, derrière le mot de passe et le
+  TOTP. Agent : sections `[applis.<nom>]` (`port`, `libelle`, `entetes` ajoutés à chaque
+  requête, pour qu'un jeton reste sur la machine) ; seuls les ports déclarés, seulement sur
+  127.0.0.1 ; sans section, rien n'est joignable. Relais : route
+  `/api/machines/{id}/applis/{nom}/{chemin}` (session de l'opérateur) qui transmet méthode,
+  chemin, requête, corps (4 Mio) et quelques en-têtes, et renvoie la réponse en flux (flux
+  d'évènements SSE au fil de l'eau) ; jamais le cookie de session ni `Authorization` vers
+  l'application, `Set-Cookie` retirés, redirections réécrites sous le préfixe, fermeture de la
+  page = connexion à l'application coupée. Rien n'est enregistré (ni corps, ni réponses, ni
+  chemins) ; l'audit note `appli_ouverte` et `appli_refusee`. Les requêtes qui modifient
+  quelque chose exigent un `Origin` égal au `Host` du relais (ou `X-Ricochet`).
+- Interface : la carte d'une machine liste ses applications ; un lien les ouvre en plein écran.
+- Protocole (toujours en version 1, champs facultatifs) : `InfoMachine.applis`,
+  `RequeteAppli` et `AnnulerAppli` (relais vers agent), `EnteteAppli`, `CorpsAppli` et
+  `FinAppli` (agent vers relais). Un agent plus ancien n'annonce aucune application : le
+  relais répond `404` ; un relais plus ancien ignore le champ.
+- La politique CSP d'une application web, si elle en envoie une, prime sur celle de l'interface.
+
 ## [0.5.0] - 2026-11-21
 
 ### Ajouté

@@ -59,6 +59,7 @@ fn agent(relais: &str, jeton: &str) -> Config {
         fichiers: Some(Default::default()),
         tunnel: None,
         messages: None,
+        applis: Default::default(),
     }
 }
 

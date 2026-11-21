@@ -12,6 +12,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::{
     Config,
+    applis::{Applis, Demande},
     fichiers::Fichiers,
     messages::{self, Messagerie},
     systeme::{Collecteur, info_machine},
@@ -144,6 +145,7 @@ pub async fn session_avec(
                 .map(|t| t.ports.clone())
                 .unwrap_or_default(),
             messagerie.is_some(),
+            Applis::infos(&config.applis),
         ),
     }))
     .await?;
@@ -169,6 +171,7 @@ pub async fn session_avec(
     let (mut terminaux, mut evenements) = Terminaux::new(config.terminal.clone());
     let mut tunnels = Tunnels::new(config.tunnel.clone(), terminaux.evenements());
     let (fichiers, mut reponses_fichiers) = Fichiers::new(config.fichiers.clone());
+    let (applis, mut reponses_applis) = Applis::new(config.applis.clone());
     let mut minuterie = tokio::time::interval(Duration::from_secs(intervalle.max(1)));
     let mut dernier_message = Instant::now();
     // Messages envoyés pendant cette session : un nouvel envoi à chaque connexion tant que le
@@ -208,6 +211,9 @@ pub async fn session_avec(
                 };
                 ws.send(texte(&message)).await?;
             }
+            Some(message) = reponses_applis.recv() => {
+                ws.send(texte(&message)).await?;
+            }
             Some((requete, reponse)) = reponses_fichiers.recv() => {
                 ws.send(texte(&AgentVersRelais::Fichiers { requete, reponse })).await?;
             }
@@ -216,7 +222,7 @@ pub async fn session_avec(
                 match message {
                     Some(Ok(Message::Text(t))) => match decoder::<RelaisVersAgent>(&t) {
                         Ok(message) => {
-                            if let Some(reponse) = traiter(message, collecteur, &mut terminaux, &mut tunnels, &fichiers, messagerie) {
+                            if let Some(reponse) = traiter(message, collecteur, &mut terminaux, &mut tunnels, &fichiers, &applis, messagerie) {
                                 ws.send(texte(&reponse)).await?;
                             }
                         }
@@ -254,6 +260,7 @@ fn traiter(
     terminaux: &mut Terminaux,
     tunnels: &mut Tunnels,
     fichiers: &Fichiers,
+    applis: &Applis,
     messagerie: Option<&Arc<Messagerie>>,
 ) -> Option<AgentVersRelais> {
     match message {
@@ -309,6 +316,31 @@ fn traiter(
         RelaisVersAgent::Fichiers { requete, ordre } => fichiers
             .demander(requete, ordre)
             .map(|(requete, reponse)| AgentVersRelais::Fichiers { requete, reponse }),
+        RelaisVersAgent::RequeteAppli {
+            requete,
+            appli,
+            methode,
+            chemin,
+            entetes,
+            corps,
+        } => {
+            // Ni le chemin ni les en-têtes ne sont journalisés : ils peuvent porter des données.
+            applis.lancer(
+                requete,
+                Demande {
+                    appli,
+                    methode,
+                    chemin,
+                    entetes,
+                    corps,
+                },
+            );
+            None
+        }
+        RelaisVersAgent::AnnulerAppli { requete } => {
+            applis.annuler(requete);
+            None
+        }
         RelaisVersAgent::MessageRecu { id } => {
             if let Some(messagerie) = messagerie {
                 messagerie.accepter(&id);
@@ -380,6 +412,7 @@ mod tests {
             fichiers: None,
             tunnel: None,
             messages: None,
+            applis: Default::default(),
         };
         let mut collecteur = Collecteur::new().unwrap();
         assert!(session(&config, &mut collecteur).await.is_err());

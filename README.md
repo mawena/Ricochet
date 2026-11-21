@@ -317,6 +317,52 @@ transmet sans l'enregistrer. Le relais ne joint que les services de push listés
 | `GET/POST /api/push/abonnements`, `DELETE …/{id}` | appareils abonnés (le jeton des tunnels n'a accès à rien de tout cela) |
 | `POST /api/push/essai` | notification d'essai à tous les appareils → `{appareils, envoyes, supprimes, echecs}` |
 
+### 9. Applications web des machines
+
+Une application web qui écoute en local sur une machine (par exemple la fenêtre de traitement de
+CofiTicket sur `127.0.0.1:8790`) s'ouvre depuis l'interface de Ricochet, sur téléphone comme
+ailleurs, derrière le mot de passe et le TOTP : la page d'une machine liste ses applications,
+un toucher les ouvre en plein écran. Pages, JSON, flux d'évènements (SSE) et actions (`POST`)
+passent par la connexion de l'agent, sans ouvrir aucun port.
+
+**Configuration de l'agent** (`/etc/ricochet/agent.toml`), une section par application :
+
+```toml
+[applis.cofiticket]
+port = 8790                     # 127.0.0.1 seulement
+libelle = "CofiTicket"          # facultatif, le nom par défaut
+[applis.cofiticket.entetes]     # ajoutés à chaque requête, ils remplacent ceux du navigateur
+Cookie = "cofiticket=<jeton>"   # le jeton reste sur la machine
+```
+
+Sans section `[applis.*]`, rien n'est joignable. Le nom (`[a-z0-9-]`, 32 au plus) est celui de
+l'adresse : `https://<relais>/api/machines/<machine>/applis/<nom>/`. L'agent ne se connecte
+qu'à `127.0.0.1` et au port déclaré ; le relais ne connaît que le nom et le libellé (ni le port
+ni les en-têtes). Un relais ou un agent plus ancien refuse proprement (`404`).
+
+**Ce que fait le relais** :
+- route authentifiée par la session de l'opérateur (comme le terminal et les fichiers) ;
+  transmet méthode, chemin, requête, corps (4 Mio au plus) et quelques en-têtes du navigateur
+  (`Accept`, `Content-Type`, `Origin`, `Last-Event-ID`, `Range`…), **jamais** le cookie de
+  session de Ricochet ni `Authorization` ;
+- renvoie la réponse en flux, au fil de l'eau (`X-Accel-Buffering: no` pour nginx) ; retire
+  les `Set-Cookie` ; réécrit les redirections sous le préfixe ; la politique CSP de l'application,
+  si elle en a une, est conservée ;
+- ne garde **rien** : ni corps, ni réponses, ni chemins, ni en-têtes (ni en base, ni dans le
+  journal). L'audit note `appli_ouverte` (machine, application, opérateur), une fois par
+  tranche de dix minutes, et `appli_refusee` ;
+- une requête qui modifie quelque chose (`POST`…) doit porter un `Origin` égal au `Host` du
+  relais (ou `X-Ricochet`) : une page d'un autre site ne peut pas agir au nom de l'opérateur ;
+- fermer la page coupe aussitôt la connexion de l'agent à l'application.
+
+L'application doit accepter l'`Origin` du relais (pour CofiTicket : `interface.origines` de
+`~/.config/cofiticket/config.json`) et n'utiliser que des adresses relatives (elle est servie
+sous un préfixe). Une application déclarée est de confiance : sa page s'exécute sur le domaine
+du relais.
+
+Limites : pas de WebSocket vers les applications (HTTP/1.1 et flux SSE seulement) ; 32
+requêtes simultanées par machine.
+
 ## Configuration
 
 **Relais** (`serveur.toml`, modèle [exemples/serveur.toml](exemples/serveur.toml)) : `ecoute`
@@ -326,7 +372,7 @@ transmet sans l'enregistrer. Le relais ne joint que les services de push listés
 `utilisateurs`, `url`, `deconnexion` ; désactivée par défaut, voir « Mode Portier »), sections `[messages]` et `[push]` (voir « Messages des machines »). Comptes et machines sont dans la base, pas ici.
 
 **Agent** (`agent.toml`, modèle [exemples/agent.toml](exemples/agent.toml)) : `relais`
-(`wss://…/agent`), `id`, `jeton`, sections `[terminal]` (`commande`, `maximum`) `[fichiers]` (`utilisateur`), `[tunnel]` (`ports`, `maximum`) et `[messages]` (`utilisateurs`, `socket`, `conservation_jours`, `dossier_etat`) facultatives.
+(`wss://…/agent`), `id`, `jeton`, sections `[terminal]` (`commande`, `maximum`) `[fichiers]` (`utilisateur`), `[tunnel]` (`ports`, `maximum`), `[messages]` (`utilisateurs`, `socket`, `conservation_jours`, `dossier_etat`) et `[applis.<nom>]` (`port`, `libelle`, `entetes`) facultatives.
 
 **Client des tunnels** (`~/.config/ricochet/client.toml`, modèle
 [exemples/client.toml](exemples/client.toml)) : `relais` (`https://…`), `jeton`.
