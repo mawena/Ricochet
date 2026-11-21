@@ -90,7 +90,7 @@ CofiTicket sur le PC, ensuite CCS). Contrat dans `CofiTicket/docs/contrat-ricoch
 - [x] M.6 Interface : installable (manifeste, icônes, service worker), vue Messages (non lus, détail à chasse fixe, Copier, boutons), notifications (activer, appareils, essai), ouverture au toucher
 - [x] M.7 Tests : unitaires, bout en bout (vrai relais, vrai agent, faux service de push qui déchiffre), essai de l'interface avec Chromium sans écran
 - [x] M.8 Documentation (README, CHANGELOG, CLAUDE.md), `cargo clippy`, paquets
-- [ ] M.9 Par Charles : relecture, release, installer relais et agents, `[push] url_publique` sur le relais, `[messages]` sur l'agent du PC, activer les notifications sur chaque appareil
+- [x] M.9 Release 0.5.0 faite. Reste à Charles : relecture, release, installer relais et agents, `[push] url_publique` sur le relais, `[messages]` sur l'agent du PC, activer les notifications sur chaque appareil
 
 ## Phase 5 : supervision et actions rapides
 - [ ] 5.1 Services systemd : liste, état, démarrer, arrêter, redémarrer

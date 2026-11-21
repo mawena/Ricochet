@@ -6,6 +6,8 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.5.0] - 2026-11-21
+
 ### Ajouté
 - **Messages des machines** : un programme local envoie un message à l'agent de sa machine
   (socket Unix `/run/ricochet-agent/messages.sock`, section `[messages]` de l'agent :
