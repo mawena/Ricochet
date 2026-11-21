@@ -116,6 +116,8 @@ async fn session(
                 | ErreurEnvoi::SansFichiers
                 | ErreurEnvoi::SansMessages
                 | ErreurEnvoi::SansTunnel
+                | ErreurEnvoi::SansAppli
+                | ErreurEnvoi::TropDApplis
                 | ErreurEnvoi::TropDeTunnels => "machine occupée, réessayer",
                 ErreurEnvoi::SansTerminal => {
                     "terminal désactivé sur cette machine (section [terminal] de l'agent)"

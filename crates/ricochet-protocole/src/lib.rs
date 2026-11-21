@@ -28,7 +28,23 @@ pub struct InfoMachine {
     /// L'agent transmet les messages des programmes de la machine (section `[messages]`).
     #[serde(default)]
     pub messages: bool,
+    /// Applications web locales que l'agent accepte de transmettre (section `[applis.*]`).
+    #[serde(default)]
+    pub applis: Vec<InfoAppli>,
 }
+
+/// Une application web locale déclarée par l'agent. Ni le port ni les en-têtes ajoutés (qui
+/// peuvent porter un jeton) ne quittent la machine : le relais ne connaît que le nom.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InfoAppli {
+    /// Nom dans l'adresse (`[a-z0-9-]{1,32}`).
+    pub nom: String,
+    /// Libellé affiché dans l'interface.
+    pub libelle: String,
+}
+
+/// En-têtes HTTP transportés : liste de couples (nom, valeur).
+pub type EntetesHttp = Vec<(String, String)>;
 
 /// Numéro d'un terminal, attribué par le relais.
 pub type NumeroTerminal = u32;
@@ -253,6 +269,26 @@ pub enum AgentVersRelais {
     },
     /// Accusé de réception d'une réponse à un bouton : le relais n'a plus à la renvoyer.
     ReponseRecue { id: String },
+    /// Début de la réponse d'une application web (statut et en-têtes), puis `CorpsAppli`
+    /// morceau par morceau, puis `FinAppli`.
+    EnteteAppli {
+        requete: NumeroRequete,
+        statut: u16,
+        entetes: EntetesHttp,
+    },
+    /// Un morceau du corps de la réponse, transmis dès qu'il arrive (flux d'évènements compris).
+    CorpsAppli {
+        requete: NumeroRequete,
+        #[serde(with = "base64")]
+        donnees: Vec<u8>,
+    },
+    /// Fin de la réponse, ou échec (`erreur`) : avant l'en-tête, la requête a échoué ; après,
+    /// le corps est incomplet.
+    FinAppli {
+        requete: NumeroRequete,
+        #[serde(default)]
+        erreur: Option<String>,
+    },
 }
 
 /// Messages envoyés par le relais à l'agent.
@@ -307,6 +343,21 @@ pub enum RelaisVersAgent {
         /// Instant de la réponse, en secondes depuis l'époque Unix.
         quand: u64,
     },
+    /// Requête HTTP vers l'application locale `appli` (déclarée par l'agent) ; l'agent répond
+    /// par `EnteteAppli`, `CorpsAppli` et `FinAppli`. Le relais n'envoie que si l'agent a
+    /// annoncé l'application dans `InfoMachine.applis`.
+    RequeteAppli {
+        requete: NumeroRequete,
+        appli: String,
+        methode: String,
+        /// Chemin et requête, commençant par `/`.
+        chemin: String,
+        entetes: EntetesHttp,
+        #[serde(default, with = "base64")]
+        corps: Vec<u8>,
+    },
+    /// Le navigateur a fermé la requête : l'agent coupe la connexion à l'application.
+    AnnulerAppli { requete: NumeroRequete },
 }
 
 /// Raison d'un refus.
@@ -356,6 +407,10 @@ mod tests {
             fichiers: true,
             tunnels: vec![22],
             messages: true,
+            applis: vec![InfoAppli {
+                nom: "cofiticket".into(),
+                libelle: "CofiTicket".into(),
+            }],
         }
     }
 
@@ -444,6 +499,7 @@ mod tests {
         assert!(!info.fichiers);
         assert!(info.tunnels.is_empty());
         assert!(!info.messages);
+        assert!(info.applis.is_empty());
     }
 
     #[test]
@@ -502,6 +558,55 @@ mod tests {
             Some(GenreMessage::Alerte)
         );
         assert_eq!(GenreMessage::depuis_texte("autre"), None);
+    }
+
+    #[test]
+    fn applis_aller_retour() {
+        let requete = RelaisVersAgent::RequeteAppli {
+            requete: 9,
+            appli: "cofiticket".into(),
+            methode: "POST".into(),
+            chemin: "/api/x?a=1".into(),
+            entetes: vec![("content-type".into(), "application/json".into())],
+            corps: b"{}".to_vec(),
+        };
+        let texte = encoder(&requete);
+        assert!(
+            texte.starts_with(r#"{"type":"requete_appli","requete":9"#),
+            "{texte}"
+        );
+        assert_eq!(decoder::<RelaisVersAgent>(&texte).unwrap(), requete);
+        let sans_corps: RelaisVersAgent = decoder(
+            r#"{"type":"requete_appli","requete":1,"appli":"a","methode":"GET","chemin":"/","entetes":[]}"#,
+        )
+        .unwrap();
+        assert!(
+            matches!(sans_corps, RelaisVersAgent::RequeteAppli { corps, .. } if corps.is_empty())
+        );
+        for message in [
+            AgentVersRelais::EnteteAppli {
+                requete: 9,
+                statut: 200,
+                entetes: vec![("content-type".into(), "text/event-stream".into())],
+            },
+            AgentVersRelais::CorpsAppli {
+                requete: 9,
+                donnees: b"data: 1\n\n".to_vec(),
+            },
+            AgentVersRelais::FinAppli {
+                requete: 9,
+                erreur: None,
+            },
+        ] {
+            assert_eq!(
+                decoder::<AgentVersRelais>(&encoder(&message)).unwrap(),
+                message
+            );
+        }
+        assert_eq!(
+            encoder(&RelaisVersAgent::AnnulerAppli { requete: 2 }),
+            r#"{"type":"annuler_appli","requete":2}"#
+        );
     }
 
     #[test]

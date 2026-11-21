@@ -1,6 +1,6 @@
 //! Informations et état de la machine.
 
-use ricochet_protocole::{EtatDisque, EtatMachine, InfoMachine};
+use ricochet_protocole::{EtatDisque, EtatMachine, InfoAppli, InfoMachine};
 use sysinfo::{Disks, System};
 
 /// Systèmes de fichiers sans intérêt pour l'espace disque (images montées, mémoire…).
@@ -12,6 +12,7 @@ pub fn info_machine(
     fichiers: bool,
     tunnels: Vec<u16>,
     messages: bool,
+    applis: Vec<InfoAppli>,
 ) -> InfoMachine {
     InfoMachine {
         nom_hote: System::host_name().unwrap_or_default(),
@@ -23,6 +24,7 @@ pub fn info_machine(
         fichiers,
         tunnels,
         messages,
+        applis,
     }
 }
 
@@ -82,7 +84,7 @@ mod tests {
 
     #[test]
     fn mesures_plausibles() {
-        let info = info_machine(true, true, vec![22], true);
+        let info = info_machine(true, true, vec![22], true, Vec::new());
         assert!(info.terminal);
         assert!(!info.nom_hote.is_empty());
         let etat = Collecteur::new().unwrap().etat();

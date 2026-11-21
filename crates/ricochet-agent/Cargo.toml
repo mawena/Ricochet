@@ -23,6 +23,11 @@ tracing-subscriber.workspace = true
 anyhow.workspace = true
 portable-pty.workspace = true
 libc.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+http-body-util.workspace = true
+http.workspace = true
+bytes.workspace = true
 
 [dev-dependencies]
 ricochet-serveur.workspace = true

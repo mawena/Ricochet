@@ -99,6 +99,21 @@ a.bouton {
   background: var(--accent);
   color: #fff;
 }
+.applis { margin-top: 0.75rem; }
+.applis h3 { margin: 0 0 0.4rem; font-size: 0.95rem; color: var(--doux); font-weight: 600; }
+.liste-applis { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+a.bouton-lien {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+a.bouton-lien[aria-disabled="true"] { opacity: 0.45; }
 #portier p { margin: 0.8rem 0 0; text-align: center; color: var(--doux); }
 button:disabled { opacity: 0.45; cursor: default; }
 button.discret { background: transparent; color: var(--accent); border: 1px solid var(--bord); }

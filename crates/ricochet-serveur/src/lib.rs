@@ -15,6 +15,7 @@ pub mod webpush;
 
 mod agents;
 mod api;
+mod applis;
 mod fichiers;
 mod messages;
 mod portier;
@@ -51,6 +52,8 @@ pub struct Relais {
     pub push: push::Push,
     /// Limite de débit des messages, par machine.
     pub limite_messages: messages::Debit,
+    /// Dernières ouvertures d'applications web notées à l'audit (en mémoire).
+    pub(crate) ouvertures: applis::Ouvertures,
 }
 
 impl Relais {
@@ -66,6 +69,7 @@ impl Relais {
             sessions_portier: portier::Sessions::default(),
             push,
             limite_messages: messages::Debit::default(),
+            ouvertures: applis::Ouvertures::default(),
         }
     }
 
@@ -161,6 +165,10 @@ async fn entetes_de_securite(mut reponse: Response) -> Response {
         (header::REFERRER_POLICY, "no-referrer"),
         (header::CACHE_CONTROL, "no-store"),
     ] {
+        // Une application web peut avoir sa propre politique (la sienne prime).
+        if nom == header::CONTENT_SECURITY_POLICY && entetes.contains_key(&nom) {
+            continue;
+        }
         entetes.insert(nom, HeaderValue::from_static(valeur));
     }
     reponse

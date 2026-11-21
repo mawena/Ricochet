@@ -92,6 +92,20 @@ CofiTicket sur le PC, ensuite CCS). Contrat dans `CofiTicket/docs/contrat-ricoch
 - [x] M.8 Documentation (README, CHANGELOG, CLAUDE.md), `cargo clippy`, paquets
 - [x] M.9 Release 0.5.0 faite. Reste à Charles : relecture, release, installer relais et agents, `[push] url_publique` sur le relais, `[messages]` sur l'agent du PC, activer les notifications sur chaque appareil
 
+## Applications web des machines → release 0.6.0
+
+Demande de Charles du 21/11/2026 : ouvrir depuis le téléphone, dans l'interface de Ricochet, la
+fenêtre web locale de CofiTicket (`127.0.0.1:8790` sur `pc-bureau`), sans rien enregistrer des
+données de la banque dans le relais.
+
+- [x] A.1 Protocole (toujours en v1) : `InfoMachine.applis`, `RequeteAppli`, `AnnulerAppli`, `EnteteAppli`, `CorpsAppli`, `FinAppli`
+- [x] A.2 Agent : sections `[applis.<nom>]` (`port`, `libelle`, `entetes`), client HTTP vers 127.0.0.1 seulement, réponse en flux, annulation
+- [x] A.3 Relais : route `/api/machines/{id}/applis/{nom}/…`, en-têtes filtrés, `Set-Cookie` retirés, flux, `Origin` exigé pour les écritures, audit sans contenu
+- [x] A.4 Interface : applications listées sur la carte de la machine, ouverture en plein écran
+- [x] A.5 Tests (refus, en-têtes de l'agent, cookie de session non transmis, `Set-Cookie`, SSE, rien sur disque), documentation
+- [x] A.6 Release 0.6.0, dépôt APT
+- [ ] A.7 Par Charles : mettre à jour relais et agent de `pc-bureau`, `[applis.cofiticket]`, `interface.origines` de CofiTicket
+
 ## Phase 5 : supervision et actions rapides
 - [ ] 5.1 Services systemd : liste, état, démarrer, arrêter, redémarrer
 - [ ] 5.2 Redémarrer ou éteindre la machine (avec confirmation)
