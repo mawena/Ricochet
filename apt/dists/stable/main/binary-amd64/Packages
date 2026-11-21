@@ -173,6 +173,26 @@ Description: agent de Ricochet, contrôle à distance de machines
  configuration le permet, ouvre des terminaux à la demande de l'opérateur.
  Configuration : /etc/ricochet/agent.toml, donnée par l'interface du relais.
 
+Package: ricochet-agent
+Version: 0.6.0
+Architecture: amd64
+Maintainer: mawena <57989130+mawena@users.noreply.github.com>
+Installed-Size: 6368
+Depends: libc6 (>= 2.39), libgcc-s1, ricochet-depot (= 0.6.0)
+Filename: pool/main/ricochet-agent_0.6.0_amd64.deb
+Size: 2027660
+MD5sum: daec8ee114f1f004dbfb130b7feebf5c
+SHA1: 383eaaa7f21a12b774ccc354b128c5144979a213
+SHA256: 1a016e816b4dbcf5588c452e1bf38d2e2dc1b35b09213cc6a69562b8c40c5574
+Section: admin
+Priority: optional
+Homepage: https://mawena.github.io/Ricochet/
+Description: agent de Ricochet, contrôle à distance de machines
+ L'agent ouvre une connexion sortante chiffrée vers le relais de Ricochet, lui
+ envoie l'état de la machine (processeur, mémoire, disques) et, si sa
+ configuration le permet, ouvre des terminaux à la demande de l'opérateur.
+ Configuration : /etc/ricochet/agent.toml, donnée par l'interface du relais.
+
 Package: ricochet-depot
 Version: 0.1.0
 Architecture: all
@@ -314,6 +334,26 @@ Size: 2452
 MD5sum: 8fa9b6dc289472bf6efaf1c7fdf9d13d
 SHA1: bf55437f5fc23733898d9e6b533d5abdf4cd1c78
 SHA256: 635bc0ba2b14841e4da0d16293aaefda0ddf9d67af06cabb4d427d819b732415
+Section: oldlibs
+Priority: optional
+Homepage: https://mawena.github.io/Ricochet/
+Description: paquet de transition vers le dépôt APT unique de mawena
+ Ricochet est désormais publié dans le dépôt APT unique de mawena
+ (https://apt.mawena.cloud), installé par le paquet mawena-depot. Ce paquet de
+ transition retire l'ancienne source APT de Ricochet et peut ensuite rester
+ installé sans risque.
+
+Package: ricochet-depot
+Version: 0.6.0
+Architecture: all
+Maintainer: mawena <57989130+mawena@users.noreply.github.com>
+Installed-Size: 40
+Depends: mawena-depot
+Filename: pool/main/ricochet-depot_0.6.0_all.deb
+Size: 2448
+MD5sum: 5c2c30d16233fcf1c427843805496556
+SHA1: 11ae6196f82efcdae7ce9f8ea91a77ff56b2babf
+SHA256: ec3972d3ed497516e6f80634438cf5151cde00e3d3f59c591039e31917f329c8
 Section: oldlibs
 Priority: optional
 Homepage: https://mawena.github.io/Ricochet/
@@ -481,6 +521,27 @@ Size: 3193592
 MD5sum: 02f3b27271fa76c553e8a2364f09e8c2
 SHA1: 10af5e39094265e8fa4d05a3da1c1ffc213bc0cc
 SHA256: 949c104df10a7429a0213767fcfdc8517f1bb37317dd1df76e41e797f19675ea
+Section: admin
+Priority: optional
+Homepage: https://mawena.github.io/Ricochet/
+Description: relais de Ricochet, contrôle à distance de machines
+ Ricochet commande des machines à distance, même sans adresse IP publique :
+ chaque machine fait tourner un agent qui se connecte au relais par une
+ connexion sortante (WebSocket sur TLS). Ce paquet installe le relais, son
+ interface web (état des machines, terminal dans le navigateur, journal
+ d'audit) et son service systemd. nginx assure le HTTPS devant lui.
+
+Package: ricochet-serveur
+Version: 0.6.0
+Architecture: amd64
+Maintainer: mawena <57989130+mawena@users.noreply.github.com>
+Installed-Size: 9312
+Depends: libc6 (>= 2.34), libgcc-s1, adduser, ricochet-depot (= 0.6.0)
+Filename: pool/main/ricochet-serveur_0.6.0_amd64.deb
+Size: 3233160
+MD5sum: ef0fb7efa4810b4ed3294b25f73d4815
+SHA1: ed9bcf40e957bfd4947b29095c23dbf844868fa4
+SHA256: e2a2258ae2b83b5213ede5963d63539b2d898cefa0b7f714718e5c7907511735
 Section: admin
 Priority: optional
 Homepage: https://mawena.github.io/Ricochet/
