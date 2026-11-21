@@ -25,6 +25,9 @@ pub struct InfoMachine {
     /// Ports locaux vers lesquels l'agent accepte d'ouvrir un tunnel (option `[tunnel]`).
     #[serde(default)]
     pub tunnels: Vec<u16>,
+    /// L'agent transmet les messages des programmes de la machine (section `[messages]`).
+    #[serde(default)]
+    pub messages: bool,
 }
 
 /// Numéro d'un terminal, attribué par le relais.
@@ -125,6 +128,65 @@ pub enum Genre {
     Autre,
 }
 
+/// Genre d'un message de machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GenreMessage {
+    /// Un fait, pour information.
+    Info,
+    /// L'opérateur doit agir.
+    Action,
+    /// Panne, connexion perdue.
+    Alerte,
+}
+
+impl GenreMessage {
+    pub fn texte(self) -> &'static str {
+        match self {
+            GenreMessage::Info => "info",
+            GenreMessage::Action => "action",
+            GenreMessage::Alerte => "alerte",
+        }
+    }
+
+    pub fn depuis_texte(texte: &str) -> Option<Self> {
+        match texte {
+            "info" => Some(GenreMessage::Info),
+            "action" => Some(GenreMessage::Action),
+            "alerte" => Some(GenreMessage::Alerte),
+            _ => None,
+        }
+    }
+}
+
+/// Bouton de réponse d'un message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BoutonMessage {
+    pub id: String,
+    pub libelle: String,
+}
+
+/// Un message d'un programme de la machine, tel que l'agent le transmet au relais. Le détail
+/// n'y figure jamais : il reste sur la machine, seule sa présence est indiquée.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageMachine {
+    /// Identifiant unique, attribué par l'agent.
+    pub id: String,
+    /// Programme émetteur (`[a-z0-9-]{1,32}`).
+    pub source: String,
+    pub titre: String,
+    #[serde(default)]
+    pub texte: String,
+    pub genre: GenreMessage,
+    #[serde(default)]
+    pub boutons: Vec<BoutonMessage>,
+    /// Création du message, en secondes depuis l'époque Unix.
+    pub date: u64,
+    /// Un détail est gardé sur la machine.
+    #[serde(default)]
+    pub detail: bool,
+}
+
 /// Un instantané de l'état de la machine, envoyé régulièrement.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EtatMachine {
@@ -178,6 +240,19 @@ pub enum AgentVersRelais {
         requete: NumeroRequete,
         reponse: ReponseFichiers,
     },
+    /// Un message d'un programme de la machine ; le relais répond par `MessageRecu`. L'agent le
+    /// renvoie à chaque connexion tant qu'il n'est pas accepté.
+    Message { message: MessageMachine },
+    /// Réponse à `DemandeDetail` : le détail du message, ou la raison pour laquelle il manque.
+    Detail {
+        demande: NumeroRequete,
+        #[serde(default)]
+        detail: Option<String>,
+        #[serde(default)]
+        erreur: Option<String>,
+    },
+    /// Accusé de réception d'une réponse à un bouton : le relais n'a plus à la renvoyer.
+    ReponseRecue { id: String },
 }
 
 /// Messages envoyés par le relais à l'agent.
@@ -218,6 +293,19 @@ pub enum RelaisVersAgent {
     Fichiers {
         requete: NumeroRequete,
         ordre: OrdreFichiers,
+    },
+    /// Le relais a enregistré le message `id` : l'agent n'a plus à le renvoyer.
+    MessageRecu { id: String },
+    /// Le relais veut le détail du message `id` ; l'agent répond par `AgentVersRelais::Detail`.
+    DemandeDetail { demande: NumeroRequete, id: String },
+    /// L'opérateur a répondu au message `id` par le bouton `bouton` ; l'agent répond par
+    /// `AgentVersRelais::ReponseRecue`. Renvoyé à chaque connexion tant qu'il n'est pas accusé.
+    Reponse {
+        id: String,
+        bouton: String,
+        par: String,
+        /// Instant de la réponse, en secondes depuis l'époque Unix.
+        quand: u64,
     },
 }
 
@@ -267,6 +355,7 @@ mod tests {
             terminal: true,
             fichiers: true,
             tunnels: vec![22],
+            messages: true,
         }
     }
 
@@ -354,6 +443,60 @@ mod tests {
         assert!(!info.terminal);
         assert!(!info.fichiers);
         assert!(info.tunnels.is_empty());
+        assert!(!info.messages);
+    }
+
+    #[test]
+    fn messages_aller_retour() {
+        let message = AgentVersRelais::Message {
+            message: MessageMachine {
+                id: "ab12".into(),
+                source: "cofiticket".into(),
+                titre: "R-1 : à faire".into(),
+                texte: String::new(),
+                genre: GenreMessage::Action,
+                boutons: vec![BoutonMessage {
+                    id: "resoudre".into(),
+                    libelle: "Résoudre".into(),
+                }],
+                date: 1_700_000_000,
+                detail: true,
+            },
+        };
+        let texte = encoder(&message);
+        assert!(texte.starts_with(r#"{"type":"message","message":{"id":"ab12""#), "{texte}");
+        assert_eq!(decoder::<AgentVersRelais>(&texte).unwrap(), message);
+        // Un agent plus ancien n'envoie ni boutons ni détail.
+        let court: MessageMachine = serde_json::from_str(
+            r#"{"id":"a","source":"s","titre":"t","genre":"info","date":1}"#,
+        )
+        .unwrap();
+        assert!(court.boutons.is_empty() && !court.detail && court.texte.is_empty());
+        let reponse = RelaisVersAgent::Reponse {
+            id: "ab12".into(),
+            bouton: "resoudre".into(),
+            par: "mawena".into(),
+            quand: 5,
+        };
+        assert_eq!(
+            decoder::<RelaisVersAgent>(&encoder(&reponse)).unwrap(),
+            reponse
+        );
+        assert_eq!(
+            encoder(&RelaisVersAgent::MessageRecu { id: "x".into() }),
+            r#"{"type":"message_recu","id":"x"}"#
+        );
+        let detail = AgentVersRelais::Detail {
+            demande: 3,
+            detail: Some("texte".into()),
+            erreur: None,
+        };
+        assert_eq!(
+            decoder::<AgentVersRelais>(&encoder(&detail)).unwrap(),
+            detail
+        );
+        assert_eq!(GenreMessage::depuis_texte("alerte"), Some(GenreMessage::Alerte));
+        assert_eq!(GenreMessage::depuis_texte("autre"), None);
     }
 
     #[test]

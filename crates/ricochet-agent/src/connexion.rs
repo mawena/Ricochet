@@ -1,6 +1,6 @@
 //! Connexion au relais : présentation, envoi de l'état et reconnexion automatique.
 
-use std::time::Duration;
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use anyhow::{Context, bail};
 use futures_util::{SinkExt, StreamExt};
@@ -13,6 +13,7 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::{
     Config,
     fichiers::Fichiers,
+    messages::{self, Messagerie},
     systeme::{Collecteur, info_machine},
     terminaux::{Evenement, Terminaux},
     tunnels::Tunnels,
@@ -44,9 +45,10 @@ pub fn attente(echecs: u32) -> Duration {
 /// Reste connecté au relais pour toujours, en se reconnectant après chaque coupure.
 pub async fn executer(config: Config) -> anyhow::Result<std::convert::Infallible> {
     let mut collecteur = Collecteur::new().context("lecture des informations système")?;
+    let messagerie = demarrer_messages(&config);
     let mut echecs = 0;
     loop {
-        let delai = match session(&config, &mut collecteur).await {
+        let delai = match session_avec(&config, &mut collecteur, messagerie.as_ref()).await {
             Ok(Fin::Fermee) => {
                 tracing::warn!("connexion au relais fermée, reconnexion");
                 echecs = 0;
@@ -67,12 +69,63 @@ pub async fn executer(config: Config) -> anyhow::Result<std::convert::Infallible
     }
 }
 
+/// Ouvre la file des messages et le socket si la configuration le demande. Un échec est signalé
+/// sans empêcher l'agent de servir le reste (terminal, fichiers…) : la capacité n'est alors pas
+/// annoncée au relais.
+fn demarrer_messages(config: &Config) -> Option<Arc<Messagerie>> {
+    let reglage = config.messages.as_ref()?;
+    let messagerie = match Messagerie::ouvrir(reglage) {
+        Ok(messagerie) => messagerie,
+        Err(erreur) => {
+            tracing::error!(
+                "messages désactivés : dossier d'état {} inutilisable ({erreur})",
+                reglage.dossier_etat.display()
+            );
+            return None;
+        }
+    };
+    tokio::spawn(messages::purger_periodiquement(messagerie.clone()));
+    let socket = reglage.socket.clone();
+    let pour_socket = messagerie.clone();
+    tokio::spawn(async move {
+        if let Err(erreur) = messages::servir(pour_socket, socket.clone()).await {
+            tracing::error!("messages : socket {} : {erreur}", socket.display());
+        }
+    });
+    Some(messagerie)
+}
+
+/// Dit à la messagerie si la session avec le relais est ouverte, jusqu'à sa fin.
+struct GardeSession(Arc<Messagerie>);
+
+impl GardeSession {
+    fn new(messagerie: &Arc<Messagerie>) -> Self {
+        messagerie.relais_connecte(true);
+        Self(messagerie.clone())
+    }
+}
+
+impl Drop for GardeSession {
+    fn drop(&mut self) {
+        self.0.relais_connecte(false);
+    }
+}
+
 fn texte(message: &AgentVersRelais) -> Message {
     Message::text(encoder(message))
 }
 
 /// Une session complète : connexion, présentation, puis échanges jusqu'à la coupure.
 pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Result<Fin> {
+    session_avec(config, collecteur, None).await
+}
+
+/// Comme `session`, avec la file des messages des programmes de la machine.
+pub async fn session_avec(
+    config: &Config,
+    collecteur: &mut Collecteur,
+    messagerie: Option<&Arc<Messagerie>>,
+) -> anyhow::Result<Fin> {
     // Sans fournisseur installé, la première connexion wss:// panique. Déjà fait : sans effet.
     let _ = rustls::crypto::ring::default_provider().install_default();
     let (mut ws, _) = tokio_tungstenite::connect_async(config.relais.as_str())
@@ -90,6 +143,7 @@ pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Re
                 .as_ref()
                 .map(|t| t.ports.clone())
                 .unwrap_or_default(),
+            messagerie.is_some(),
         ),
     }))
     .await?;
@@ -117,8 +171,25 @@ pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Re
     let (fichiers, mut reponses_fichiers) = Fichiers::new(config.fichiers.clone());
     let mut minuterie = tokio::time::interval(Duration::from_secs(intervalle.max(1)));
     let mut dernier_message = Instant::now();
+    // Messages envoyés pendant cette session : un nouvel envoi à chaque connexion tant que le
+    // relais ne les a pas acceptés.
+    let mut envoyes = HashSet::new();
+    let _garde = messagerie.map(GardeSession::new);
+    if let Some(messagerie) = messagerie {
+        envoyer_messages(&mut ws, messagerie, &mut envoyes).await?;
+    }
     loop {
         tokio::select! {
+            _ = async {
+                match messagerie {
+                    Some(m) => m.attendre().await,
+                    None => std::future::pending().await,
+                }
+            } => {
+                if let Some(messagerie) = messagerie {
+                    envoyer_messages(&mut ws, messagerie, &mut envoyes).await?;
+                }
+            }
             _ = minuterie.tick() => {
                 ws.send(texte(&AgentVersRelais::Etat { etat: collecteur.etat() })).await?;
             }
@@ -145,7 +216,7 @@ pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Re
                 match message {
                     Some(Ok(Message::Text(t))) => match decoder::<RelaisVersAgent>(&t) {
                         Ok(message) => {
-                            if let Some(reponse) = traiter(message, collecteur, &mut terminaux, &mut tunnels, &fichiers) {
+                            if let Some(reponse) = traiter(message, collecteur, &mut terminaux, &mut tunnels, &fichiers, messagerie) {
                                 ws.send(texte(&reponse)).await?;
                             }
                         }
@@ -160,6 +231,21 @@ pub async fn session(config: &Config, collecteur: &mut Collecteur) -> anyhow::Re
     }
 }
 
+/// Envoie au relais les messages qu'il n'a pas encore acceptés.
+async fn envoyer_messages<S>(
+    ws: &mut S,
+    messagerie: &Messagerie,
+    envoyes: &mut HashSet<String>,
+) -> anyhow::Result<()>
+where
+    S: futures_util::Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+{
+    for message in messagerie.a_envoyer(envoyes) {
+        ws.send(texte(&AgentVersRelais::Message { message })).await?;
+    }
+    Ok(())
+}
+
 /// Exécute un ordre du relais ; renvoie la réponse éventuelle.
 fn traiter(
     message: RelaisVersAgent,
@@ -167,6 +253,7 @@ fn traiter(
     terminaux: &mut Terminaux,
     tunnels: &mut Tunnels,
     fichiers: &Fichiers,
+    messagerie: Option<&Arc<Messagerie>>,
 ) -> Option<AgentVersRelais> {
     match message {
         RelaisVersAgent::DemandeEtat => Some(AgentVersRelais::Etat {
@@ -221,6 +308,39 @@ fn traiter(
         RelaisVersAgent::Fichiers { requete, ordre } => fichiers
             .demander(requete, ordre)
             .map(|(requete, reponse)| AgentVersRelais::Fichiers { requete, reponse }),
+        RelaisVersAgent::MessageRecu { id } => {
+            if let Some(messagerie) = messagerie {
+                messagerie.accepter(&id);
+            }
+            None
+        }
+        RelaisVersAgent::DemandeDetail { demande, id } => {
+            let resultat = match messagerie {
+                Some(messagerie) => messagerie.detail(&id),
+                None => Err("messages désactivés sur cette machine".into()),
+            };
+            Some(match resultat {
+                Ok(detail) => AgentVersRelais::Detail {
+                    demande,
+                    detail: Some(detail),
+                    erreur: None,
+                },
+                Err(erreur) => AgentVersRelais::Detail {
+                    demande,
+                    detail: None,
+                    erreur: Some(erreur),
+                },
+            })
+        }
+        RelaisVersAgent::Reponse {
+            id,
+            bouton,
+            par,
+            quand,
+        } => messagerie.map(|messagerie| {
+            messagerie.enregistrer_reponse(&id, &bouton, &par, quand);
+            AgentVersRelais::ReponseRecue { id }
+        }),
         autre => {
             tracing::warn!("message inattendu du relais : {autre:?}");
             None
@@ -258,6 +378,7 @@ mod tests {
             terminal: None,
             fichiers: None,
             tunnel: None,
+            messages: None,
         };
         let mut collecteur = Collecteur::new().unwrap();
         assert!(session(&config, &mut collecteur).await.is_err());
