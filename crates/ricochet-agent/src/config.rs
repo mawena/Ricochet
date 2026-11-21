@@ -1,6 +1,9 @@
 //! Configuration de l'agent, lue dans un fichier TOML.
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, bail};
 use serde::Deserialize;
@@ -26,6 +29,33 @@ pub struct Config {
     /// Messages des programmes de la machine : désactivés si la section `[messages]` est absente.
     #[serde(default)]
     pub messages: Option<ConfigMessages>,
+    /// Applications web locales joignables par le relais (`[applis.<nom>]`) : aucune si la
+    /// section est absente.
+    #[serde(default)]
+    pub applis: BTreeMap<String, ConfigAppli>,
+}
+
+/// Section `[applis.<nom>]` : une application web qui écoute sur 127.0.0.1.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigAppli {
+    /// Port local (127.0.0.1 seulement) ; aucun autre port n'est joignable.
+    pub port: u16,
+    /// Libellé affiché dans l'interface (par défaut le nom).
+    #[serde(default)]
+    pub libelle: Option<String>,
+    /// En-têtes ajoutés à chaque requête, après ceux du navigateur et en les remplaçant : un
+    /// jeton d'accès (`Cookie = "…"`) reste ainsi sur la machine.
+    #[serde(default)]
+    pub entetes: BTreeMap<String, String>,
+}
+
+/// Un nom d'application : `[a-z0-9-]{1,32}`.
+pub fn nom_appli_valide(nom: &str) -> bool {
+    (1..=32).contains(&nom.len())
+        && nom
+            .bytes()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
 }
 
 /// Section `[messages]` : un socket Unix par lequel les programmes locaux envoient des messages
@@ -138,6 +168,21 @@ impl Config {
                 bail!("messages.conservation_jours doit être supérieur à 0");
             }
         }
+        for (nom, appli) in &config.applis {
+            if !nom_appli_valide(nom) {
+                bail!("applis.{nom} : nom invalide (minuscules, chiffres et tirets, 32 au plus)");
+            }
+            if appli.port == 0 {
+                bail!("applis.{nom}.port doit être supérieur à 0");
+            }
+            for (entete, valeur) in &appli.entetes {
+                if http::HeaderName::from_bytes(entete.as_bytes()).is_err()
+                    || http::HeaderValue::from_str(valeur).is_err()
+                {
+                    bail!("applis.{nom}.entetes : en-tête « {entete} » invalide");
+                }
+            }
+        }
         Ok(config)
     }
 }
@@ -179,6 +224,23 @@ mod tests {
         );
         assert!(Config::depuis_texte(&format!("{base}[messages]")).is_err());
         assert!(Config::depuis_texte(&format!("{base}[messages]\nutilisateurs = [\"\"]")).is_err());
+        assert!(config.applis.is_empty());
+        let applis = Config::depuis_texte(&format!(
+            "{base}[applis.cofiticket]\nport = 8790\nlibelle = \"CofiTicket\"\n[applis.cofiticket.entetes]\nCookie = \"cofiticket=x\""
+        ))
+        .unwrap()
+        .applis;
+        assert_eq!(applis["cofiticket"].port, 8790);
+        assert_eq!(applis["cofiticket"].entetes["Cookie"], "cofiticket=x");
+        assert!(Config::depuis_texte(&format!("{base}[applis.Mal]\nport = 1")).is_err());
+        assert!(Config::depuis_texte(&format!("{base}[applis.a]\nport = 0")).is_err());
+        assert!(Config::depuis_texte(&format!("{base}[applis.a]")).is_err());
+        assert!(
+            Config::depuis_texte(&format!(
+                "{base}[applis.a]\nport = 1\n[applis.a.entetes]\n\"a b\" = \"x\""
+            ))
+            .is_err()
+        );
         assert!(Config::depuis_texte(&format!("{base}[tunnel]\nports = []")).is_err());
         assert!(Config::depuis_texte(&format!("{base}[tunnel]")).is_err());
         let avec = Config::depuis_texte(

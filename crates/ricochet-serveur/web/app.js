@@ -182,6 +182,19 @@ function carteMachine(m) {
   boutonFichiers.disabled = !m.connectee;
   boutonFichiers.addEventListener("click", () => ouvrirFichiers(m));
 
+  // Applications web déclarées par l'agent : ouvertes en plein écran (lien dans la même page).
+  const applis = m.info?.applis ?? [];
+  carte.querySelector(".applis").hidden = applis.length === 0;
+  for (const a of applis) {
+    const lien = element("a", "bouton-lien", a.libelle || a.nom);
+    lien.href = `/api/machines/${encodeURIComponent(m.id)}/applis/${encodeURIComponent(a.nom)}/`;
+    if (!m.connectee) {
+      lien.setAttribute("aria-disabled", "true");
+      lien.removeAttribute("href");
+    }
+    carte.querySelector(".liste-applis").append(lien);
+  }
+
   const actualiser = carte.querySelector(".actualiser");
   actualiser.disabled = !m.connectee;
   actualiser.addEventListener("click", () => actualiserMachine(m.id, actualiser));
