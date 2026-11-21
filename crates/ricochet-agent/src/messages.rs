@@ -547,11 +547,24 @@ pub async fn servir(messagerie: Arc<Messagerie>, socket: PathBuf) -> io::Result<
     }
 }
 
+/// Répond puis ferme. Ce que le client a encore à envoyer est lu et jeté (un instant) : fermer
+/// avec des données non lues ferait réinitialiser la connexion, et le client perdrait la réponse.
 async fn repondre(flux: &mut UnixStream, reponse: &Value) {
     let mut ligne = reponse.to_string();
     ligne.push('\n');
     let _ = flux.write_all(ligne.as_bytes()).await;
     let _ = flux.shutdown().await;
+    let jeter = async {
+        let mut poubelle = [0u8; 8192];
+        let mut total = 0usize;
+        while total < 4 * REQUETE_MAX {
+            match flux.read(&mut poubelle).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => total += n,
+            }
+        }
+    };
+    let _ = tokio::time::timeout(Duration::from_secs(1), jeter).await;
 }
 
 /// Une connexion : contrôle de l'identité, une requête, une réponse, fermeture.

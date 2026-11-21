@@ -1299,6 +1299,7 @@ dependencies = [
  "clap",
  "futures-util",
  "libc",
+ "p256",
  "portable-pty",
  "ricochet-protocole",
  "ricochet-serveur",

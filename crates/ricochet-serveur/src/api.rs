@@ -561,6 +561,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn messages_et_push_reserves_a_l_operateur() {
+        let relais = relais();
+        for (methode, chemin) in [
+            ("GET", "/api/messages"),
+            ("GET", "/api/messages/x"),
+            ("GET", "/api/messages/x/detail"),
+            ("POST", "/api/messages/x/reponse"),
+            ("GET", "/api/push/cle"),
+            ("GET", "/api/push/abonnements"),
+            ("POST", "/api/push/abonnements"),
+            ("DELETE", "/api/push/abonnements/1"),
+            ("POST", "/api/push/essai"),
+        ] {
+            let sans = appeler(&relais, methode, chemin, &[("x-ricochet", "1")], None).await;
+            assert_eq!(sans.statut, 401, "{methode} {chemin}");
+        }
+        // Avec le jeton opérateur : la liste est vide, la clé demande la configuration du relais.
+        let liste = appeler(&relais, "GET", "/api/messages", &[BEARER], None).await;
+        assert_eq!(liste.statut, 200);
+        assert!(liste.corps.contains("\"non_lus\":0"));
+        assert_eq!(appeler(&relais, "GET", "/api/messages/x", &[BEARER], None).await.statut, 404);
+        assert_eq!(appeler(&relais, "GET", "/api/push/cle", &[BEARER], None).await.statut, 503);
+        assert_eq!(appeler(&relais, "POST", "/api/push/essai", &[BEARER], None).await.statut, 503);
+    }
+
+    #[tokio::test]
+    async fn interface_installable() {
+        let relais = relais();
+        let sw = appeler(&relais, "GET", "/sw.js", &[], None).await;
+        assert_eq!(sw.statut, 200);
+        assert!(sw.corps.contains("notificationclick") && sw.corps.contains("showNotification"));
+        let manifeste = appeler(&relais, "GET", "/manifest.json", &[], None).await;
+        let m: serde_json::Value = serde_json::from_str(&manifeste.corps).unwrap();
+        assert_eq!(m["display"], "standalone");
+        let tailles: Vec<_> = m["icons"].as_array().unwrap().iter().map(|i| i["sizes"].as_str().unwrap().to_owned()).collect();
+        assert!(tailles.contains(&"192x192".to_owned()) && tailles.contains(&"512x512".to_owned()));
+        let accueil = appeler(&relais, "GET", "/", &[], None).await;
+        assert!(accueil.corps.contains("apple-touch-icon"));
+        // Les icônes sont de vrais PNG aux bonnes dimensions.
+        for (chemin, taille) in [("/icone-192.png", 192u32), ("/icone-512.png", 512), ("/apple-touch-icon.png", 180)] {
+            let requete = axum::http::Request::builder().uri(chemin).body(Body::empty()).unwrap();
+            let reponse = application(relais.clone()).oneshot(requete).await.unwrap();
+            assert_eq!(reponse.status(), 200, "{chemin}");
+            assert_eq!(reponse.headers()["content-type"], "image/png");
+            let csp = reponse.headers()["content-security-policy"].to_str().unwrap().to_owned();
+            assert!(csp.contains("worker-src 'self'") && csp.contains("manifest-src 'self'"));
+            assert!(!csp.contains("unsafe-eval") && !csp.contains("script-src 'self' 'unsafe"));
+            let octets = to_bytes(reponse.into_body(), 1 << 20).await.unwrap();
+            assert_eq!(&octets[..8], b"\x89PNG\r\n\x1a\n", "{chemin}");
+            let largeur = u32::from_be_bytes(octets[16..20].try_into().unwrap());
+            let hauteur = u32::from_be_bytes(octets[20..24].try_into().unwrap());
+            assert_eq!((largeur, hauteur), (taille, taille), "{chemin}");
+        }
+        // Aucune donnée reçue ne passe par innerHTML.
+        let script = appeler(&relais, "GET", "/app.js", &[], None).await;
+        let code: String = script.corps.lines().filter(|l| !l.trim_start().starts_with("//")).collect();
+        assert!(!code.contains("innerHTML") && !code.contains("insertAdjacentHTML"));
+        assert!(!sw.corps.contains("innerHTML"));
+    }
+
+    #[tokio::test]
     async fn connexion_complete() {
         let relais = relais();
         assert_eq!(

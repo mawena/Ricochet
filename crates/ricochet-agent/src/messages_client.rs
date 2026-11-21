@@ -27,9 +27,15 @@ pub fn appeler(socket: &Path, requete: &Value) -> anyhow::Result<Value> {
         bail!("requête trop grande (96 Kio au plus)");
     }
     ligne.push('\n');
-    flux.write_all(ligne.as_bytes())?;
+    // Si l'agent a déjà répondu et fermé (refus), l'écriture échoue : la réponse reste à lire.
+    let ecriture = flux.write_all(ligne.as_bytes());
     let mut reponse = String::new();
-    flux.take(REQUETE_MAX as u64).read_to_string(&mut reponse)?;
+    let lecture = flux.take(REQUETE_MAX as u64).read_to_string(&mut reponse);
+    if reponse.trim().is_empty() {
+        ecriture.context("écriture de la requête")?;
+        lecture.context("lecture de la réponse")?;
+        bail!("l'agent a fermé la connexion sans répondre");
+    }
     serde_json::from_str(reponse.trim()).context("réponse illisible de l'agent")
 }
 

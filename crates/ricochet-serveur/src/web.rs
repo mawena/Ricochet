@@ -17,12 +17,20 @@ const SCRIPT: &str = include_str!("../web/app.js");
 const STYLE: &str = include_str!("../web/style.css");
 const MANIFESTE: &str = include_str!("../web/manifest.json");
 const ICONE: &str = include_str!("../web/icone.svg");
+const SERVICE_WORKER: &str = include_str!("../web/sw.js");
+const ICONE_192: &[u8] = include_bytes!("../web/icone-192.png");
+const ICONE_512: &[u8] = include_bytes!("../web/icone-512.png");
+const ICONE_APPLE: &[u8] = include_bytes!("../web/apple-touch-icon.png");
 const XTERM: &str = include_str!("../web/vendor/xterm.js");
 const XTERM_STYLE: &str = include_str!("../web/vendor/xterm.css");
 const XTERM_AJUSTEMENT: &str = include_str!("../web/vendor/addon-fit.js");
 
 fn fichier(type_mime: &'static str, contenu: &'static str) -> impl IntoResponse {
     ([(header::CONTENT_TYPE, type_mime)], contenu)
+}
+
+fn image_png(contenu: &'static [u8]) -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "image/png")], contenu)
 }
 
 pub fn routeur() -> Router<Arc<Relais>> {
@@ -39,6 +47,17 @@ pub fn routeur() -> Router<Arc<Relais>> {
         .route(
             "/manifest.json",
             get(|| async { fichier("application/manifest+json", MANIFESTE) }),
+        )
+        // Le service worker est servi à la racine : sa portée couvre toute l'interface.
+        .route(
+            "/sw.js",
+            get(|| async { fichier("text/javascript; charset=utf-8", SERVICE_WORKER) }),
+        )
+        .route("/icone-192.png", get(|| async { image_png(ICONE_192) }))
+        .route("/icone-512.png", get(|| async { image_png(ICONE_512) }))
+        .route(
+            "/apple-touch-icon.png",
+            get(|| async { image_png(ICONE_APPLE) }),
         )
         .route(
             "/icone.svg",
