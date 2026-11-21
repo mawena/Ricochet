@@ -270,3 +270,45 @@ body.fichiers-ouverts { overflow: hidden; }
 #envoyer-fichiers {
   white-space: nowrap;
 }
+
+/* --- Messages des machines --- */
+.compteur {
+  display: inline-block;
+  min-width: 1.3rem;
+  padding: 0 0.35rem;
+  border-radius: 1rem;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.75rem;
+  line-height: 1.3rem;
+  text-align: center;
+}
+.messages, .appareils { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.messages li {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--carte);
+  border: 1px solid var(--bord);
+  border-left: 4px solid var(--doux);
+  border-radius: var(--rayon);
+  cursor: pointer;
+}
+.messages li.genre-action { border-left-color: var(--attention); }
+.messages li.genre-alerte { border-left-color: var(--danger); }
+.messages li.genre-info { border-left-color: var(--accent); }
+.messages li .titre { font-weight: 400; overflow-wrap: anywhere; }
+.messages li.non-lu .titre { font-weight: 700; }
+.messages li .texte, .messages li .meta { margin: 0; color: var(--doux); font-size: 0.85rem; overflow-wrap: anywhere; }
+.appareils li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.appareils .nom-appareil { overflow-wrap: anywhere; }
+#detail-texte { overflow-wrap: anywhere; white-space: pre-wrap; }
+pre.detail {
+  user-select: text;
+  margin: 0.5rem 0;
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.85rem/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}

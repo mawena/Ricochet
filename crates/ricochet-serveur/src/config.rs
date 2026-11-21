@@ -38,6 +38,125 @@ pub struct Config {
     /// Mode Portier de l'interface web (désactivé par défaut).
     #[serde(default)]
     pub portier: Portier,
+    /// Messages des machines (conservation, débit).
+    #[serde(default)]
+    pub messages: Messages,
+    /// Notifications Web Push vers les appareils de l'opérateur.
+    #[serde(default)]
+    pub push: Push,
+}
+
+/// Section `[messages]` : les messages que les programmes des machines envoient à l'opérateur.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Messages {
+    /// Les messages sont supprimés du relais après ce nombre de jours.
+    #[serde(default = "conservation_par_defaut")]
+    pub conservation_jours: u64,
+    /// Messages acceptés par minute et par machine ; au-delà, ils sont gardés mais ne sont plus
+    /// poussés en notification (une machine déréglée ne doit pas inonder les téléphones).
+    #[serde(default = "debit_par_defaut")]
+    pub limite_par_minute: usize,
+    /// Attente maximale du détail d'un message auprès de l'agent, en secondes.
+    #[serde(default = "delai_detail_par_defaut")]
+    pub delai_detail_s: u64,
+}
+
+impl Default for Messages {
+    fn default() -> Self {
+        Self {
+            conservation_jours: conservation_par_defaut(),
+            limite_par_minute: debit_par_defaut(),
+            delai_detail_s: delai_detail_par_defaut(),
+        }
+    }
+}
+
+fn conservation_par_defaut() -> u64 {
+    30
+}
+
+fn debit_par_defaut() -> usize {
+    20
+}
+
+fn delai_detail_par_defaut() -> u64 {
+    15
+}
+
+/// Services de push des navigateurs : seuls leurs hôtes reçoivent des requêtes du relais.
+pub const HOTES_PUSH: [&str; 5] = [
+    "fcm.googleapis.com",
+    "*.push.apple.com",
+    "*.push.services.mozilla.com",
+    "*.notify.windows.com",
+    "*.push.microsoft.com",
+];
+
+/// Section `[push]` : Web Push (RFC 8030, 8291, 8292).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Push {
+    /// Adresse publique du relais (`https://ricochet.mawena.cloud`) : elle va dans la
+    /// revendication `sub` des jetons VAPID, à la place d'une adresse e-mail. Sans elle, le
+    /// relais ne pousse rien.
+    #[serde(default)]
+    pub url_publique: Option<String>,
+    /// Hôtes des services de push joignables (`*.exemple.org` pour tout un domaine). Un
+    /// abonnement vers un autre hôte est refusé : il ne doit pas servir à atteindre une adresse
+    /// interne.
+    #[serde(default = "hotes_par_defaut")]
+    pub hotes_autorises: Vec<String>,
+    /// Réservé aux essais : accepte `http://` et les adresses locales pour les hôtes listés.
+    #[serde(default)]
+    pub autoriser_http: bool,
+    /// Durée pendant laquelle le service de push garde une notification pour un appareil éteint.
+    #[serde(default = "ttl_par_defaut")]
+    pub ttl_s: u64,
+}
+
+impl Default for Push {
+    fn default() -> Self {
+        Self {
+            url_publique: None,
+            hotes_autorises: hotes_par_defaut(),
+            autoriser_http: false,
+            ttl_s: ttl_par_defaut(),
+        }
+    }
+}
+
+fn hotes_par_defaut() -> Vec<String> {
+    HOTES_PUSH.iter().map(|h| (*h).to_owned()).collect()
+}
+
+fn ttl_par_defaut() -> u64 {
+    86400
+}
+
+impl Push {
+    /// Adresse publique sans `/` final.
+    pub fn sujet(&self) -> Option<&str> {
+        self.url_publique
+            .as_deref()
+            .map(|u| u.trim_end_matches('/'))
+    }
+
+    fn verifier(&self) -> anyhow::Result<()> {
+        if let Some(url) = &self.url_publique {
+            let https = url.starts_with("https://");
+            if !(https || self.autoriser_http && url.starts_with("http://")) || !adresse_web(url) {
+                bail!("[push] url_publique doit être une adresse https://… sans espace");
+            }
+        }
+        if self.hotes_autorises.iter().any(|h| h.trim().is_empty()) {
+            bail!("[push] hotes_autorises ne peut pas contenir d'hôte vide");
+        }
+        if self.ttl_s == 0 || self.ttl_s > 28 * 86400 {
+            bail!("[push] ttl_s doit être entre 1 seconde et 28 jours");
+        }
+        Ok(())
+    }
 }
 
 /// Section `[portier]` : l'interface web fait confiance à l'en-tête `X-Portier-Utilisateur`
@@ -146,6 +265,16 @@ impl Config {
         if self.duree_session_h == 0 {
             bail!("duree_session_h doit être supérieure à 0");
         }
+        if self.messages.conservation_jours == 0 {
+            bail!("[messages] conservation_jours doit être supérieur à 0");
+        }
+        if self.messages.limite_par_minute == 0 {
+            bail!("[messages] limite_par_minute doit être supérieur à 0");
+        }
+        if self.messages.delai_detail_s == 0 {
+            bail!("[messages] delai_detail_s doit être supérieur à 0");
+        }
+        self.push.verifier()?;
         self.portier.verifier()
     }
 }
@@ -212,6 +341,42 @@ mod tests {
         // Désactivé, la section peut rester incomplète ; une clé inconnue est refusée.
         assert!(Config::depuis_texte("[portier]\nactif = false").is_ok());
         assert!(Config::depuis_texte("[portier]\nautre = 1").is_err());
+    }
+
+    #[test]
+    fn messages_et_push() {
+        let config = Config::depuis_texte("").unwrap();
+        assert_eq!(config.messages.conservation_jours, 30);
+        assert_eq!(config.messages.limite_par_minute, 20);
+        assert_eq!(config.push.url_publique, None);
+        assert_eq!(config.push.ttl_s, 86400);
+        assert!(
+            config
+                .push
+                .hotes_autorises
+                .iter()
+                .any(|h| h == "fcm.googleapis.com")
+        );
+        assert!(!config.push.autoriser_http);
+        let config = Config::depuis_texte(
+            "[messages]\nconservation_jours = 7\nlimite_par_minute = 5\n\
+             [push]\nurl_publique = \"https://ricochet.mawena.cloud/\"\nhotes_autorises = [\"*.push.apple.com\"]\nttl_s = 3600",
+        )
+        .unwrap();
+        assert_eq!(config.messages.conservation_jours, 7);
+        assert_eq!(config.push.sujet(), Some("https://ricochet.mawena.cloud"));
+        assert_eq!(config.push.hotes_autorises, ["*.push.apple.com"]);
+        assert!(Config::depuis_texte("[push]\nurl_publique = \"http://x\"").is_err());
+        assert!(
+            Config::depuis_texte("[push]\nautoriser_http = true\nurl_publique = \"http://x\"")
+                .is_ok()
+        );
+        assert!(Config::depuis_texte("[push]\nurl_publique = \"mailto:a@b.c\"").is_err());
+        assert!(Config::depuis_texte("[push]\nttl_s = 0").is_err());
+        assert!(Config::depuis_texte("[push]\nhotes_autorises = [\"\"]").is_err());
+        assert!(Config::depuis_texte("[messages]\nconservation_jours = 0").is_err());
+        assert!(Config::depuis_texte("[messages]\nlimite_par_minute = 0").is_err());
+        assert!(Config::depuis_texte("[push]\nautre = 1").is_err());
     }
 
     #[test]

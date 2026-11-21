@@ -8,6 +8,10 @@
   <title>Ricochet</title>
   <link rel="icon" href="/icone.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ricochet">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
 </head>
@@ -47,6 +51,7 @@
     <section id="ecran-tableau" hidden>
       <nav class="onglets">
         <button type="button" data-onglet="machines" class="actif">Machines</button>
+        <button type="button" data-onglet="messages">Messages <span id="pastille-messages" class="compteur" hidden></span></button>
         <button type="button" data-onglet="journal">Journal</button>
       </nav>
 
@@ -83,6 +88,38 @@
             <button type="button" id="fermer-jeton" class="discret">J'ai copié, fermer</button>
           </div>
         </div>
+      </div>
+
+      <div id="onglet-messages" hidden>
+        <div id="vue-liste-messages">
+          <details id="notifications" class="carte">
+            <summary>Notifications sur mes appareils</summary>
+            <p id="etat-notifications" class="vide"></p>
+            <div class="actions">
+              <button type="button" id="activer-notifications">Activer les notifications sur cet appareil</button>
+              <button type="button" id="essai-notification" class="discret">Notification d'essai</button>
+            </div>
+            <ul id="appareils" class="appareils"></ul>
+          </details>
+          <ul id="liste-messages" class="messages"></ul>
+          <p id="aucun-message" class="vide" hidden>Aucun message pour l'instant.</p>
+        </div>
+        <article id="vue-detail-message" class="carte" hidden>
+          <button type="button" id="retour-messages" class="discret">← Messages</button>
+          <h2 id="detail-titre"></h2>
+          <p id="detail-meta" class="sous-titre"></p>
+          <p id="detail-texte"></p>
+          <div id="detail-bloc" hidden>
+            <p id="detail-etat" class="vide"></p>
+            <pre id="detail-contenu" class="detail" hidden></pre>
+            <div class="actions">
+              <button type="button" id="copier-detail" class="discret" hidden>Copier</button>
+              <button type="button" id="recharger-detail" class="discret" hidden>Réessayer</button>
+            </div>
+          </div>
+          <div id="detail-boutons" class="actions"></div>
+          <p id="detail-reponse" class="vide" hidden></p>
+        </article>
       </div>
 
       <div id="onglet-journal" hidden>

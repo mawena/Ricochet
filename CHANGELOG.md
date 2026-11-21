@@ -6,6 +6,35 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.5.0] - 2026-11-21
+
+### Ajouté
+- **Messages des machines** : un programme local envoie un message à l'agent de sa machine
+  (socket Unix `/run/ricochet-agent/messages.sock`, section `[messages]` de l'agent :
+  `utilisateurs`, `socket`, `conservation_jours`, `dossier_etat`) ; contrôle d'accès par
+  `SO_PEERCRED`, validations (source, cle, titre ≤ 80, texte ≤ 200, 3 boutons, détail ≤ 64 Kio),
+  dédoublonnage par `(source, cle)`, file d'attente sur disque (0700/0600) renvoyée à chaque
+  reconnexion, purge après `conservation_jours`. Sous-commande
+  `ricochet-agent message envoyer|reponses|etat`.
+- Protocole (toujours en version 1, champs facultatifs) : `InfoMachine.messages`, `Message`,
+  `Detail`, `ReponseRecue` (agent vers relais), `MessageRecu`, `DemandeDetail`, `Reponse`
+  (relais vers agent).
+- Relais : tables `messages` (sans le détail), `abonnements_push`, `reglages` ; routes
+  `/api/messages` (liste, un message, détail demandé à l'agent, réponse à un bouton une seule
+  fois, gardée si l'agent est hors ligne), `/api/push/cle`, `/api/push/abonnements`,
+  `/api/push/essai` ; limite de débit par machine ; purge ; journal d'audit
+  (`message_recu`, `message_detail`, `message_reponse`, `push_abonnement_ajoute`,
+  `push_abonnement_retire`, `push_essai`) ; le jeton des tunnels n'y a pas accès. Sections
+  `[messages]` et `[push]` du relais.
+- **Web Push** : clés VAPID P-256 créées au premier démarrage, JWT ES256 (RFC 8292), chiffrement
+  `aes128gcm` (RFC 8291, RustCrypto, sans OpenSSL), client HTTPS rustls/ring, liste d'hôtes de
+  push autorisés (`[push] hotes_autorises`), abonnements périmés (404, 410) retirés.
+- Interface installable (manifeste, icônes PNG 192, 512 et apple-touch-icon, service worker
+  `/sw.js`), vue « Messages » (non lus, détail à chasse fixe avec « Copier », boutons de
+  réponse), activation des notifications sur l'appareil, liste des appareils, notification
+  d'essai ; toucher la notification ouvre le message. CSP : `worker-src 'self'` en plus.
+- Service de l'agent : `RuntimeDirectory=ricochet-agent` (0755) et `StateDirectory=ricochet-agent` (0700).
+
 ## [0.4.1] - 2026-11-17
 
 ### Corrigé

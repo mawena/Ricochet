@@ -114,6 +114,7 @@ async fn session(
                 ErreurEnvoi::Deconnectee => "machine déconnectée",
                 ErreurEnvoi::Saturee
                 | ErreurEnvoi::SansFichiers
+                | ErreurEnvoi::SansMessages
                 | ErreurEnvoi::SansTunnel
                 | ErreurEnvoi::TropDeTunnels => "machine occupée, réessayer",
                 ErreurEnvoi::SansTerminal => {

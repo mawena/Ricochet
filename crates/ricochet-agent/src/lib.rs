@@ -6,6 +6,8 @@
 pub mod config;
 pub mod connexion;
 pub mod fichiers;
+pub mod messages;
+pub mod messages_client;
 pub mod systeme;
 pub mod terminaux;
 pub mod tunnel_client;

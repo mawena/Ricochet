@@ -47,6 +47,17 @@ pub struct Registre {
     compteur_terminaux: AtomicU32,
     requetes: Mutex<HashMap<NumeroRequete, Attente>>,
     compteur_requetes: AtomicU64,
+    details: Mutex<HashMap<NumeroRequete, AttenteDetail>>,
+}
+
+/// Réponse d'un agent à une demande de détail : le texte, ou la raison de son absence.
+pub type ReponseDetail = Result<String, String>;
+
+/// Une demande de détail dont la réponse est attendue de la session d'un agent.
+struct AttenteDetail {
+    machine: String,
+    session: u64,
+    reponse: oneshot::Sender<ReponseDetail>,
 }
 
 /// Une requête de fichiers dont la réponse est attendue de la session d'un agent.
@@ -107,6 +118,8 @@ pub enum ErreurEnvoi {
     TropDeTerminaux,
     /// L'agent ne donne pas accès à ses fichiers.
     SansFichiers,
+    /// L'agent ne transmet pas de messages.
+    SansMessages,
     /// L'agent n'ouvre pas de tunnel vers ce port.
     SansTunnel,
     /// Trop de tunnels ouverts vers cette machine.
@@ -172,6 +185,10 @@ impl Registre {
             .lock()
             .unwrap()
             .retain(|_, r| !(r.machine == id && r.session == numero));
+        self.details
+            .lock()
+            .unwrap()
+            .retain(|_, r| !(r.machine == id && r.session == numero));
     }
 
     fn modifier(&self, id: &str, numero: u64, action: impl FnOnce(&mut Machine)) {
@@ -213,6 +230,7 @@ impl Registre {
             .unwrap()
             .retain(|_, t| t.machine != id);
         self.requetes.lock().unwrap().retain(|_, r| r.machine != id);
+        self.details.lock().unwrap().retain(|_, r| r.machine != id);
     }
 
     /// Envoie un ordre sur les fichiers à la machine ; la réponse arrivera dans le récepteur
@@ -267,6 +285,70 @@ impl Registre {
         {
             let _ = attente.reponse.send(reponse);
         }
+    }
+
+    /// Demande à l'agent le détail du message `message` ; la réponse arrivera dans le récepteur
+    /// renvoyé (fermé sans réponse si la session de l'agent se termine avant).
+    pub fn demander_detail(
+        &self,
+        id: &str,
+        message: &str,
+    ) -> Result<(NumeroRequete, oneshot::Receiver<ReponseDetail>), ErreurEnvoi> {
+        let machines = self.machines.lock().unwrap();
+        let machine = machines.get(id).ok_or(ErreurEnvoi::Deconnectee)?;
+        let session = machine.session.as_ref().ok_or(ErreurEnvoi::Deconnectee)?;
+        if !machine.info.as_ref().is_some_and(|i| i.messages) {
+            return Err(ErreurEnvoi::SansMessages);
+        }
+        let demande = self.compteur_requetes.fetch_add(1, Ordering::Relaxed) + 1;
+        let (envoi, reception) = oneshot::channel();
+        // Enregistrée avant l'envoi : la réponse ne peut pas arriver avant.
+        self.details.lock().unwrap().insert(
+            demande,
+            AttenteDetail {
+                machine: id.to_owned(),
+                session: session.numero,
+                reponse: envoi,
+            },
+        );
+        let envoye =
+            session
+                .commandes
+                .try_send(Commande::Envoyer(RelaisVersAgent::DemandeDetail {
+                    demande,
+                    id: message.to_owned(),
+                }));
+        if let Err(e) = envoye {
+            self.details.lock().unwrap().remove(&demande);
+            return Err(match e {
+                mpsc::error::TrySendError::Full(_) => ErreurEnvoi::Saturee,
+                mpsc::error::TrySendError::Closed(_) => ErreurEnvoi::Deconnectee,
+            });
+        }
+        Ok((demande, reception))
+    }
+
+    /// Transmet la réponse d'un agent, si la demande vient bien de sa session.
+    pub fn reponse_detail(
+        &self,
+        id: &str,
+        session: u64,
+        demande: NumeroRequete,
+        reponse: ReponseDetail,
+    ) {
+        let mut details = self.details.lock().unwrap();
+        if details
+            .get(&demande)
+            .is_some_and(|r| r.machine == id && r.session == session)
+            && let Some(attente) = details.remove(&demande)
+        {
+            let _ = attente.reponse.send(reponse);
+        }
+    }
+
+    /// Oublie une demande de détail restée sans réponse.
+    pub fn oublier_detail(&self, demande: NumeroRequete) {
+        self.details.lock().unwrap().remove(&demande);
     }
 
     /// Oublie une requête restée sans réponse.
@@ -426,6 +508,7 @@ mod tests {
             terminal: true,
             fichiers: true,
             tunnels: vec![22],
+            messages: true,
         }
     }
 

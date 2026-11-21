@@ -23,3 +23,13 @@ jeton = "remplacer-par-le-jeton"
 # [tunnel]
 # ports = [22]
 # maximum = 16
+
+# Messages des programmes de la machine vers mes appareils (notification, détail, boutons de
+# réponse) : retirer les « # » pour activer le socket Unix. Seuls les comptes listés (et root)
+# peuvent y parler ; le contrôle se fait par l'identité du processus (SO_PEERCRED).
+# Envoi : `ricochet-agent message envoyer --source mon-programme --titre "…"` (voir le README).
+# [messages]
+# utilisateurs = ["charles"]
+# socket = "/run/ricochet-agent/messages.sock"
+# conservation_jours = 30                 # durée de garde des messages et détails sur la machine
+# dossier_etat = "/var/lib/ricochet-agent"   # file d'attente persistante (0700)
