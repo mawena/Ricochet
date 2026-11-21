@@ -71,7 +71,10 @@ fn source_valide(source: &str) -> bool {
 fn message_valide(message: &MessageMachine) -> Result<(), &'static str> {
     if message.id.is_empty()
         || message.id.len() > 64
-        || !message.id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+        || !message
+            .id
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
     {
         return Err("identifiant invalide");
     }
@@ -98,9 +101,19 @@ fn message_valide(message: &MessageMachine) -> Result<(), &'static str> {
 /// Reçoit un message d'un agent : l'enregistre et, s'il est nouveau, le pousse en notification.
 /// Renvoie vrai si l'agent doit recevoir l'accusé (le message est enregistré, déjà connu, ou
 /// définitivement refusé : dans tous les cas il ne doit plus le renvoyer).
-pub fn recevoir(relais: &Arc<Relais>, machine: &str, adresse: &str, message: MessageMachine) -> bool {
+pub fn recevoir(
+    relais: &Arc<Relais>,
+    machine: &str,
+    adresse: &str,
+    message: MessageMachine,
+) -> bool {
     if let Err(raison) = message_valide(&message) {
-        relais.noter(None, adresse, "message_refuse", &format!("{machine} : {raison}"));
+        relais.noter(
+            None,
+            adresse,
+            "message_refuse",
+            &format!("{machine} : {raison}"),
+        );
         return true;
     }
     let instant = maintenant();
@@ -108,7 +121,12 @@ pub fn recevoir(relais: &Arc<Relais>, machine: &str, adresse: &str, message: Mes
         Ok(Enregistre::Nouveau) => {}
         Ok(Enregistre::Deja) => return true,
         Ok(Enregistre::AutreMachine) => {
-            relais.noter(None, adresse, "message_refuse", &format!("{machine} : identifiant pris"));
+            relais.noter(
+                None,
+                adresse,
+                "message_refuse",
+                &format!("{machine} : identifiant pris"),
+            );
             return true;
         }
         Err(erreur) => {
@@ -121,7 +139,12 @@ pub fn recevoir(relais: &Arc<Relais>, machine: &str, adresse: &str, message: Mes
         None,
         adresse,
         "message_recu",
-        &format!("{machine} : {} {} ({})", message.source, message.id, message.genre.texte()),
+        &format!(
+            "{machine} : {} {} ({})",
+            message.source,
+            message.id,
+            message.genre.texte()
+        ),
     );
     if !relais
         .limite_messages
@@ -230,11 +253,9 @@ pub(crate) async fn detail(
     };
     let delai = Duration::from_secs(relais.config.messages.delai_detail_s);
     match tokio::time::timeout(delai, reception).await {
-        Ok(Ok(Ok(texte))) => Ok((
-            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-            texte,
-        )
-            .into_response()),
+        Ok(Ok(Ok(texte))) => {
+            Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], texte).into_response())
+        }
         Ok(Ok(Err(raison))) => Ok(refus(StatusCode::NOT_FOUND, &raison)),
         Ok(Err(_)) => Ok(refus(
             StatusCode::CONFLICT,
@@ -242,7 +263,10 @@ pub(crate) async fn detail(
         )),
         Err(_) => {
             relais.registre.oublier_detail(demande);
-            Ok(refus(StatusCode::GATEWAY_TIMEOUT, "la machine ne répond pas"))
+            Ok(refus(
+                StatusCode::GATEWAY_TIMEOUT,
+                "la machine ne répond pas",
+            ))
         }
     }
 }
@@ -263,14 +287,20 @@ pub(crate) async fn repondre(
         return Ok(refus(StatusCode::NOT_FOUND, "message inconnu"));
     };
     if !message.boutons.iter().any(|b| b.id == corps.bouton) {
-        return Ok(refus(StatusCode::BAD_REQUEST, "ce message n'a pas ce bouton"));
+        return Ok(refus(
+            StatusCode::BAD_REQUEST,
+            "ce message n'a pas ce bouton",
+        ));
     }
     let instant = maintenant();
     if !relais
         .base
         .repondre_message(&id, &corps.bouton, &operateur.compte, instant)?
     {
-        return Ok(refus(StatusCode::CONFLICT, "ce message a déjà reçu une réponse"));
+        return Ok(refus(
+            StatusCode::CONFLICT,
+            "ce message a déjà reçu une réponse",
+        ));
     }
     relais.noter(
         Some(&operateur.compte),
@@ -345,7 +375,10 @@ mod tests {
         assert!(message_valide(&m).is_err());
         let mut m = message();
         m.boutons = (0..4)
-            .map(|i| BoutonMessage { id: format!("b{i}"), libelle: "x".into() })
+            .map(|i| BoutonMessage {
+                id: format!("b{i}"),
+                libelle: "x".into(),
+            })
             .collect();
         assert!(message_valide(&m).is_err());
     }
@@ -357,7 +390,10 @@ mod tests {
             assert!(debit.autorise("pc", 100 + i, 3));
         }
         assert!(!debit.autorise("pc", 110, 3));
-        assert!(debit.autorise("vps", 110, 3), "limite propre à chaque machine");
+        assert!(
+            debit.autorise("vps", 110, 3),
+            "limite propre à chaque machine"
+        );
         assert!(debit.autorise("pc", 160, 3), "la fenêtre glisse");
     }
 }

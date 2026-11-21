@@ -13,7 +13,10 @@ use p256::{
     PublicKey, SecretKey,
     ecdh::diffie_hellman,
     ecdsa::{Signature, SigningKey, signature::Signer},
-    elliptic_curve::{rand_core::{OsRng, RngCore}, sec1::ToEncodedPoint},
+    elliptic_curve::{
+        rand_core::{OsRng, RngCore},
+        sec1::ToEncodedPoint,
+    },
 };
 use sha2_010::Sha256;
 
@@ -47,7 +50,10 @@ pub fn chiffrer_avec(
     sel: &[u8; 16],
 ) -> anyhow::Result<Vec<u8>> {
     if contenu.len() > CONTENU_MAX {
-        bail!("contenu trop long pour une notification ({} octets)", contenu.len());
+        bail!(
+            "contenu trop long pour une notification ({} octets)",
+            contenu.len()
+        );
     }
     if p256dh.len() != 65 || auth.len() != 16 {
         bail!("clés d'abonnement de taille inattendue");
@@ -164,7 +170,11 @@ impl Vapid {
     }
 
     fn depuis_secret(secret: SecretKey) -> Self {
-        let publique = secret.public_key().to_encoded_point(false).as_bytes().to_vec();
+        let publique = secret
+            .public_key()
+            .to_encoded_point(false)
+            .as_bytes()
+            .to_vec();
         Self {
             signature: SigningKey::from(&secret),
             publique,
@@ -260,7 +270,10 @@ mod tests {
             b"{\"id\":\"1\"}"
         );
         // Deux chiffrements du même contenu diffèrent (clé éphémère et sel neufs).
-        assert_ne!(corps, chiffrer(b"{\"id\":\"1\"}", &b(UA_PUBLIQUE), &b(AUTH)).unwrap());
+        assert_ne!(
+            corps,
+            chiffrer(b"{\"id\":\"1\"}", &b(UA_PUBLIQUE), &b(AUTH)).unwrap()
+        );
     }
 
     #[test]
@@ -280,7 +293,11 @@ mod tests {
     #[test]
     fn jwt_vapid_verifiable() {
         let vapid = Vapid::generer();
-        let jwt = vapid.jwt("https://fcm.googleapis.com", "https://ricochet.example", 1_900_000_000);
+        let jwt = vapid.jwt(
+            "https://fcm.googleapis.com",
+            "https://ricochet.example",
+            1_900_000_000,
+        );
         let parties: Vec<&str> = jwt.split('.').collect();
         assert_eq!(parties.len(), 3);
         assert_eq!(b(parties[0]), br#"{"typ":"JWT","alg":"ES256"}"#);
@@ -293,7 +310,10 @@ mod tests {
         assert_eq!(b(parties[2]).len(), 64);
         let verification = VerifyingKey::from_sec1_bytes(vapid.publique()).unwrap();
         verification
-            .verify(format!("{}.{}", parties[0], parties[1]).as_bytes(), &signature)
+            .verify(
+                format!("{}.{}", parties[0], parties[1]).as_bytes(),
+                &signature,
+            )
             .expect("signature valide");
         assert!(verification.verify(b"autre chose", &signature).is_err());
         assert_eq!(vapid.publique().len(), 65);
@@ -303,7 +323,11 @@ mod tests {
         assert!(en_tete.starts_with("vapid t="));
         assert!(en_tete.ends_with(&format!(", k={}", vapid.publique_base64url())));
         let exp = {
-            let jeton = en_tete.trim_start_matches("vapid t=").split(',').next().unwrap();
+            let jeton = en_tete
+                .trim_start_matches("vapid t=")
+                .split(',')
+                .next()
+                .unwrap();
             let rev: serde_json::Value =
                 serde_json::from_slice(&b(jeton.split('.').nth(1).unwrap())).unwrap();
             rev["exp"].as_u64().unwrap()

@@ -200,10 +200,9 @@ impl Messagerie {
             let Some(id) = nom.strip_suffix(".json").filter(|i| id_valide(i)) else {
                 continue;
             };
-            match fs::read(&chemin)
-                .map_err(|e| e.to_string())
-                .and_then(|o| serde_json::from_slice::<Enregistrement>(&o).map_err(|e| e.to_string()))
-            {
+            match fs::read(&chemin).map_err(|e| e.to_string()).and_then(|o| {
+                serde_json::from_slice::<Enregistrement>(&o).map_err(|e| e.to_string())
+            }) {
                 Ok(enregistrement) if enregistrement.message.id == id => {
                     etat.insert(id.to_owned(), enregistrement);
                 }
@@ -285,7 +284,11 @@ impl Messagerie {
             return;
         };
         if enregistrement.reponse.is_some()
-            || !enregistrement.message.boutons.iter().any(|b| b.id == bouton)
+            || !enregistrement
+                .message
+                .boutons
+                .iter()
+                .any(|b| b.id == bouton)
         {
             return;
         }
@@ -396,8 +399,9 @@ impl Messagerie {
         }
         let genre = match requete.genre.as_deref() {
             None => GenreMessage::Info,
-            Some(g) => GenreMessage::depuis_texte(g)
-                .ok_or("genre invalide : info, action ou alerte")?,
+            Some(g) => {
+                GenreMessage::depuis_texte(g).ok_or("genre invalide : info, action ou alerte")?
+            }
         };
         let boutons = requete.boutons.unwrap_or_default();
         if boutons.len() > 3 {
@@ -488,11 +492,7 @@ impl Messagerie {
     /// Ce compte du système a-t-il le droit de parler au socket ? Root toujours ; les autres
     /// seulement s'ils figurent dans `utilisateurs`.
     pub fn uid_autorise(&self, uid: u32) -> bool {
-        uid == 0
-            || self
-                .utilisateurs
-                .iter()
-                .any(|nom| uid_de(nom) == Some(uid))
+        uid == 0 || self.utilisateurs.iter().any(|nom| uid_de(nom) == Some(uid))
     }
 }
 
@@ -519,7 +519,10 @@ fn uid_de(nom: &str) -> Option<u32> {
 /// `utilisateurs`, vérifiée par `SO_PEERCRED` à chaque connexion, fait foi.
 pub async fn servir(messagerie: Arc<Messagerie>, socket: PathBuf) -> io::Result<()> {
     if let Some(parent) = socket.parent() {
-        fs::DirBuilder::new().recursive(true).mode(0o755).create(parent)?;
+        fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o755)
+            .create(parent)?;
     }
     // Un socket resté d'une exécution précédente empêcherait d'écouter.
     if fs::symlink_metadata(&socket).is_ok_and(|m| {
@@ -713,7 +716,10 @@ mod tests {
         r.cle = Some("R-2:attente".into());
         assert_ne!(m.envoyer(r, 4).unwrap(), id);
         // Sans clé : jamais dédoublonné.
-        assert_ne!(m.envoyer(envoi("a"), 5).unwrap(), m.envoyer(envoi("a"), 5).unwrap());
+        assert_ne!(
+            m.envoyer(envoi("a"), 5).unwrap(),
+            m.envoyer(envoi("a"), 5).unwrap()
+        );
         let _ = fs::remove_dir_all(&d);
     }
 
@@ -741,15 +747,25 @@ mod tests {
         assert_eq!(mode(config.dossier_etat.clone()), 0o700);
         assert_eq!(mode(config.dossier_etat.join("messages")), 0o700);
         assert_eq!(mode(config.dossier_etat.join("details")), 0o700);
-        assert_eq!(mode(config.dossier_etat.join(format!("messages/{id}.json"))), 0o600);
-        assert_eq!(mode(config.dossier_etat.join(format!("details/{id}.txt"))), 0o600);
+        assert_eq!(
+            mode(config.dossier_etat.join(format!("messages/{id}.json"))),
+            0o600
+        );
+        assert_eq!(
+            mode(config.dossier_etat.join(format!("details/{id}.txt"))),
+            0o600
+        );
 
         // Redémarrage : tout est relu.
         let m = Messagerie::ouvrir(&config).unwrap();
         assert_eq!(m.detail(&id).unwrap(), "secret client");
         assert!(m.detail(&accepte).unwrap_err().contains("pas de détail"));
         assert!(m.detail("../../etc/passwd").is_err());
-        assert_eq!(m.etat()["en_attente"], 0, "tout est accepté (une réponse implique l'acceptation)");
+        assert_eq!(
+            m.etat()["en_attente"],
+            0,
+            "tout est accepté (une réponse implique l'acceptation)"
+        );
         let mut deja = HashSet::new();
         assert!(m.a_envoyer(&mut deja).is_empty(), "plus rien à envoyer");
         // Doublon après redémarrage.
@@ -762,9 +778,19 @@ mod tests {
         assert_eq!(reponses["reponses"][0]["bouton"], "ok");
         assert_eq!(reponses["reponses"][0]["par"], "mawena");
         assert_eq!(reponses["reponses"][0]["quand"], iso_utc(200));
-        assert!(m.reponses("cofiticket")["reponses"].as_array().unwrap().is_empty());
+        assert!(
+            m.reponses("cofiticket")["reponses"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
         let m = Messagerie::ouvrir(&config).unwrap();
-        assert!(m.reponses("cofiticket")["reponses"].as_array().unwrap().is_empty());
+        assert!(
+            m.reponses("cofiticket")["reponses"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
         // Une autre source ne voit pas les réponses.
         assert!(m.reponses("ccs")["reponses"].as_array().unwrap().is_empty());
         let _ = fs::remove_dir_all(&d);
@@ -776,26 +802,46 @@ mod tests {
         let m = Messagerie::ouvrir(&config(&d)).unwrap();
         let mut r = envoi("t");
         r.boutons = Some(vec![
-            BoutonMessage { id: "a".into(), libelle: "A".into() },
-            BoutonMessage { id: "b".into(), libelle: "B".into() },
+            BoutonMessage {
+                id: "a".into(),
+                libelle: "A".into(),
+            },
+            BoutonMessage {
+                id: "b".into(),
+                libelle: "B".into(),
+            },
         ]);
         let id = m.envoyer(r, 1).unwrap();
         // Messages à renvoyer : une fois par session, tant qu'ils ne sont pas acceptés.
         let mut session1 = HashSet::new();
         assert_eq!(m.a_envoyer(&mut session1).len(), 1);
         assert!(m.a_envoyer(&mut session1).is_empty());
-        assert_eq!(m.a_envoyer(&mut HashSet::new()).len(), 1, "nouvelle session : renvoi");
+        assert_eq!(
+            m.a_envoyer(&mut HashSet::new()).len(),
+            1,
+            "nouvelle session : renvoi"
+        );
         m.accepter(&id);
         assert!(m.a_envoyer(&mut HashSet::new()).is_empty());
         // Bouton inconnu ignoré ; la première réponse gagne.
         m.enregistrer_reponse(&id, "zz", "x", 5);
-        assert!(m.reponses("cofiticket")["reponses"].as_array().unwrap().is_empty());
+        assert!(
+            m.reponses("cofiticket")["reponses"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
         m.enregistrer_reponse(&id, "a", "mawena", 6);
         m.enregistrer_reponse(&id, "b", "autre", 7);
         let r = m.reponses("cofiticket");
         assert_eq!(r["reponses"][0]["bouton"], "a");
         m.enregistrer_reponse(&id, "b", "autre", 8);
-        assert!(m.reponses("cofiticket")["reponses"].as_array().unwrap().is_empty());
+        assert!(
+            m.reponses("cofiticket")["reponses"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
         let _ = fs::remove_dir_all(&d);
     }
 
@@ -811,8 +857,18 @@ mod tests {
         assert_eq!(m.purger(1000 + 29 * 86400), 0);
         assert_eq!(m.purger(1000 + 30 * 86400), 1);
         assert!(m.detail(&vieux).is_err());
-        assert!(!config.dossier_etat.join(format!("details/{vieux}.txt")).exists());
-        assert!(!config.dossier_etat.join(format!("messages/{vieux}.json")).exists());
+        assert!(
+            !config
+                .dossier_etat
+                .join(format!("details/{vieux}.txt"))
+                .exists()
+        );
+        assert!(
+            !config
+                .dossier_etat
+                .join(format!("messages/{vieux}.json"))
+                .exists()
+        );
         assert!(m.detail(&recent).is_err(), "sans détail");
         assert_eq!(m.etat()["en_attente"], 1);
         let _ = fs::remove_dir_all(&d);

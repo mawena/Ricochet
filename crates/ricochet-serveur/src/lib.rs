@@ -129,8 +129,13 @@ async fn purger_sessions(relais: Arc<Relais>) {
         if let Err(erreur) = relais.base.purger_sessions(registre::maintenant()) {
             tracing::warn!("purge des sessions : {erreur:#}");
         }
-        let limite = registre::maintenant()
-            .saturating_sub(relais.config.messages.conservation_jours.saturating_mul(86400));
+        let limite = registre::maintenant().saturating_sub(
+            relais
+                .config
+                .messages
+                .conservation_jours
+                .saturating_mul(86400),
+        );
         match relais.base.purger_messages(limite) {
             Ok(0) => {}
             Ok(n) => tracing::info!("{n} message(s) de machine purgé(s)"),

@@ -120,10 +120,16 @@ mod tests {
         };
         let r = requete_envoi(&envoi).unwrap();
         assert_eq!(r["op"], "envoyer");
-        assert_eq!(r["boutons"][0], json!({"id": "resoudre", "libelle": "Résoudre"}));
+        assert_eq!(
+            r["boutons"][0],
+            json!({"id": "resoudre", "libelle": "Résoudre"})
+        );
         assert_eq!(r["boutons"][1]["libelle"], "b=c");
         assert_eq!(r["cle"], "k");
-        let mauvais = Envoi { boutons: vec!["sans-egal".into()], ..envoi };
+        let mauvais = Envoi {
+            boutons: vec!["sans-egal".into()],
+            ..envoi
+        };
         assert!(requete_envoi(&mauvais).is_err());
     }
 }

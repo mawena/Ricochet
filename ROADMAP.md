@@ -77,6 +77,21 @@ automatiques.
 - [x] Tests (accepté, nom absent, IP non locale, option désactivée, points des agents), documentation, variante nginx
 - [ ] Par Charles : installer la 0.4.0, activer `[portier]`, protéger `location = /` dans nginx
 
+## Messages des machines et notifications Web Push
+
+Demande de Charles du 21/11/2026 : fonction générale « messages des machines » (premier client :
+CofiTicket sur le PC, ensuite CCS). Contrat dans `CofiTicket/docs/contrat-ricochet.md`.
+
+- [x] M.1 Protocole (toujours en v1) : `InfoMachine.messages`, message, détail, réponse, accusés
+- [x] M.2 Agent : `[messages]`, socket Unix (`SO_PEERCRED`), validations, file persistante 0700/0600, renvoi à la reconnexion, dédoublonnage `(source, cle)`, purge
+- [x] M.3 Agent : `ricochet-agent message envoyer|reponses|etat`, `RuntimeDirectory` et `StateDirectory` du service
+- [x] M.4 Relais : tables `messages`, `abonnements_push`, `reglages` ; routes `/api/messages…`, `/api/push/…` ; limite de débit ; purge ; audit
+- [x] M.5 Web Push : clés VAPID en base, JWT ES256, chiffrement `aes128gcm` (RFC 8291, vecteur de l'annexe A), client HTTPS rustls/ring, liste d'hôtes autorisés, abonnements périmés retirés
+- [x] M.6 Interface : installable (manifeste, icônes, service worker), vue Messages (non lus, détail à chasse fixe, Copier, boutons), notifications (activer, appareils, essai), ouverture au toucher
+- [x] M.7 Tests : unitaires, bout en bout (vrai relais, vrai agent, faux service de push qui déchiffre), essai de l'interface avec Chromium sans écran
+- [x] M.8 Documentation (README, CHANGELOG, CLAUDE.md), `cargo clippy`, paquets
+- [ ] M.9 Par Charles : relecture, release, installer relais et agents, `[push] url_publique` sur le relais, `[messages]` sur l'agent du PC, activer les notifications sur chaque appareil
+
 ## Phase 5 : supervision et actions rapides
 - [ ] 5.1 Services systemd : liste, état, démarrer, arrêter, redémarrer
 - [ ] 5.2 Redémarrer ou éteindre la machine (avec confirmation)

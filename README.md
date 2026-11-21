@@ -18,7 +18,8 @@ L'opérateur consulte et commande les machines par le relais.
 État actuel : les agents se connectent au relais et envoient l'état de leur machine
 (processeur, charge, mémoire, disques, durée d'allumage). L'opérateur se connecte à l'interface
 web (mot de passe + code TOTP), voit ses machines en ligne ou non, en ajoute ou en révoque, et
-consulte le journal d'audit, ouvre un **terminal** sur une machine depuis le navigateur
+consulte le journal d'audit, reçoit les **messages de ses machines** en notification sur son
+téléphone, ouvre un **terminal** sur une machine depuis le navigateur
 (xterm.js, avec une barre de touches pour le téléphone : Échap, Tab, Ctrl, flèches) et gère ses
 **fichiers** (parcourir, télécharger, envoyer avec reprise). La suite est dans la
 [feuille de route](ROADMAP.md).
@@ -228,16 +229,104 @@ url = "https://portier.mawena.cloud"
   en vidant l'en-tête (`proxy_set_header X-Portier-Utilisateur "";`) : voir la variante dans
   [deploiement/nginx-ricochet.conf](deploiement/nginx-ricochet.conf).
 
+### 8. Messages des machines (notifications)
+
+Un programme local d'une machine (CofiTicket, CCS…) envoie un message à l'agent de sa machine ;
+le relais le pousse en **notification Web Push** sur les appareils de l'opérateur (iPhone,
+Android, Chrome sous Ubuntu) ; toucher la notification ouvre le message dans l'interface, où
+l'on lit le détail, copie le texte et répond par des boutons dont la réponse revient au
+programme. Rien ne passe par un service tiers autre que le service de push du navigateur
+(Apple, Google, Mozilla), qui ne voit que du texte chiffré.
+
+**Configuration de l'agent** (`/etc/ricochet/agent.toml`) :
+
+```toml
+[messages]
+utilisateurs = ["charles-gamligo"]   # seuls ces comptes du système peuvent parler au socket
+# socket = "/run/ricochet-agent/messages.sock"
+# conservation_jours = 30            # durée de garde des messages et détails sur la machine
+# dossier_etat = "/var/lib/ricochet-agent"
+```
+
+Le paquet installe le service avec `RuntimeDirectory=ricochet-agent` (dossier 0755 du socket) et
+`StateDirectory=ricochet-agent` (0700, la file d'attente). Le socket est en 0666 : la liste
+`utilisateurs` fait foi, l'agent lit l'identité du client (`SO_PEERCRED`) et refuse tout compte
+non listé (root accepté).
+
+**Socket** : une requête JSON d'une ligne (96 Kio au plus) par connexion, une ligne JSON en
+réponse.
+
+```json
+{"op": "envoyer", "source": "cofiticket", "cle": "R-012345:attente-ops",
+ "titre": "R-012345 : compte encore dormant", "texte": "Renvoyer vers les Opérations",
+ "genre": "action", "boutons": [{"id": "resoudre", "libelle": "Résoudre"}],
+ "detail": "texte libre, plusieurs lignes"}
+```
+
+- `source` `[a-z0-9-]{1,32}` ; `cle` (≤ 128) : même `(source, cle)` = même message ; `titre` ≤ 80 et
+  `texte` ≤ 200 caractères (**ils partent dans la notification** : jamais de donnée client) ;
+  `genre` `info` | `action` | `alerte` ; 0 à 3 `boutons` (`id` `[a-z0-9_-]{1,32}`, `libelle` ≤ 24) ;
+  `detail` ≤ 64 Kio, texte brut, **reste sur la machine**.
+- Réponse : `{"ok": true, "id": "…"}` ou `{"ok": false, "erreur": "…"}`.
+- `{"op": "reponses", "source": "cofiticket"}` → `{"ok": true, "reponses": [{"id", "bouton",
+  "par", "quand"}]}` : chaque réponse n'est rendue qu'une fois ; un message n'accepte qu'une réponse.
+- `{"op": "etat"}` → `{"ok": true, "relais_connecte": true, "en_attente": 0}`.
+
+**Ligne de commande** (pour les scripts ; code de sortie 1 si `ok` est faux) :
+
+```sh
+ricochet-agent message envoyer --source <s> --titre <t> [--texte <x>] [--genre info|action|alerte] \
+                               [--bouton id=Libellé]... [--detail-fichier <f>|-] [--cle <k>]
+ricochet-agent message reponses --source <s>
+ricochet-agent message etat
+```
+
+L'agent garde chaque message sur disque (dossier 0700, fichiers 0600) tant que le relais ne l'a
+pas accepté et le renvoie à chaque reconnexion : un redémarrage ou une coupure ne perd rien. Les
+messages, détails et réponses sont purgés après `conservation_jours`.
+
+**Relais** (`serveur.toml`) : sections `[messages]` (`conservation_jours`, `limite_par_minute`,
+`delai_detail_s`) et `[push]` (`url_publique`, obligatoire pour pousser ; `ttl_s`,
+`hotes_autorises`, `autoriser_http`). Les clés VAPID (ES256, P-256) sont créées au premier
+démarrage et gardées dans la base.
+
+**Installer la notification sur chaque appareil** : ouvrir l'interface, onglet *Messages*,
+« Notifications sur mes appareils », puis **Activer les notifications sur cet appareil** et
+accepter la permission ; **Notification d'essai** vérifie le tout.
+
+- *Chrome sous Ubuntu et Android* : directement dans le navigateur (menu, « Installer
+  Ricochet » pour une icône d'application).
+- *iPhone (iOS 16.4 ou plus)* : Safari, bouton Partager, **Sur l'écran d'accueil**, puis ouvrir
+  Ricochet **depuis son icône** (hors de cette application, Safari ne sait pas recevoir de push).
+- Chaque appareil apparaît dans la liste, avec un bouton pour le retirer ; un appareil que son
+  service de push déclare disparu (404, 410) est retiré tout seul.
+
+**Confidentialité** : la notification ne contient que l'identifiant, le titre, le texte, le nom
+de la machine et le genre, chiffrés de bout en bout (RFC 8291) pour l'appareil. Le **détail ne
+quitte jamais la machine** tant qu'on ne l'ouvre pas : le relais le demande alors à l'agent et le
+transmet sans l'enregistrer. Le relais ne joint que les services de push listés dans
+`hotes_autorises` et jamais une adresse locale ou privée.
+
+| Route | Rôle |
+|---|---|
+| `GET /api/messages?machine=&source=&non_lus=1&limite=` | `{messages, non_lus}` (sans détail) |
+| `GET /api/messages/{id}` | un message (le marque lu) |
+| `GET /api/messages/{id}/detail` | détail demandé à l'agent, texte brut (`409` machine hors ligne, `504` délai, `404` sans détail ou purgé) |
+| `POST /api/messages/{id}/reponse` | `{bouton}` → `{transmise}` ; une seule réponse (`409` sinon), gardée si l'agent est hors ligne |
+| `GET /api/push/cle` | clé publique VAPID (`503` si `url_publique` est absente) |
+| `GET/POST /api/push/abonnements`, `DELETE …/{id}` | appareils abonnés (le jeton des tunnels n'a accès à rien de tout cela) |
+| `POST /api/push/essai` | notification d'essai à tous les appareils → `{appareils, envoyes, supprimes, echecs}` |
+
 ## Configuration
 
 **Relais** (`serveur.toml`, modèle [exemples/serveur.toml](exemples/serveur.toml)) : `ecoute`
 (défaut `127.0.0.1:7870`), `base` (défaut `/var/lib/ricochet/ricochet.db`), `duree_session_h`
 (défaut 12), `cookie_securise` (défaut `true`), `intervalle_etat_s` (défaut 30),
 `jeton_operateur_sha256` et `jeton_tunnel_sha256` (facultatifs), section `[portier]` (`actif`,
-`utilisateurs`, `url`, `deconnexion` ; désactivée par défaut, voir « Mode Portier »). Comptes et machines sont dans la base, pas ici.
+`utilisateurs`, `url`, `deconnexion` ; désactivée par défaut, voir « Mode Portier »), sections `[messages]` et `[push]` (voir « Messages des machines »). Comptes et machines sont dans la base, pas ici.
 
 **Agent** (`agent.toml`, modèle [exemples/agent.toml](exemples/agent.toml)) : `relais`
-(`wss://…/agent`), `id`, `jeton`, sections `[terminal]` (`commande`, `maximum`) `[fichiers]` (`utilisateur`) et `[tunnel]` (`ports`, `maximum`) facultatives.
+(`wss://…/agent`), `id`, `jeton`, sections `[terminal]` (`commande`, `maximum`) `[fichiers]` (`utilisateur`), `[tunnel]` (`ports`, `maximum`) et `[messages]` (`utilisateurs`, `socket`, `conservation_jours`, `dossier_etat`) facultatives.
 
 **Client des tunnels** (`~/.config/ricochet/client.toml`, modèle
 [exemples/client.toml](exemples/client.toml)) : `relais` (`https://…`), `jeton`.
@@ -250,8 +339,8 @@ Les journaux suivent `RUST_LOG` (défaut `info`).
 |---|---|
 | `crates/ricochet-protocole` | messages échangés entre agent et relais (JSON) |
 | `crates/ricochet-serveur` | relais : WebSocket des agents, registre, base SQLite, comptes, TOTP, API |
-| `crates/ricochet-serveur/web` | interface web (HTML, CSS, JavaScript), intégrée au binaire ; `vendor/` : xterm.js 6.0 (MIT) |
-| `crates/ricochet-agent` | agent : connexion, état de la machine, terminaux (PTY), fichiers, reconnexion ; test de bout en bout |
+| `crates/ricochet-serveur/web` | interface web installable (HTML, CSS, JavaScript, manifeste, icônes PNG, service worker `sw.js`), intégrée au binaire ; `vendor/` : xterm.js 6.0 (MIT) |
+| `crates/ricochet-agent` | agent : connexion, état de la machine, terminaux (PTY), fichiers, messages (socket Unix, file persistante), reconnexion ; tests de bout en bout |
 | `exemples/` | configurations d'exemple |
 | `deploiement/` | services systemd et configuration nginx |
 | `paquets/` | scripts de maintenance des `.deb` ; `apt/` : clé et source du dépôt APT (`LISEZMOI`) |

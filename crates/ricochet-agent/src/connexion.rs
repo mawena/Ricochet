@@ -241,7 +241,8 @@ where
     S: futures_util::Sink<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
 {
     for message in messagerie.a_envoyer(envoyes) {
-        ws.send(texte(&AgentVersRelais::Message { message })).await?;
+        ws.send(texte(&AgentVersRelais::Message { message }))
+            .await?;
     }
     Ok(())
 }

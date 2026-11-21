@@ -137,7 +137,9 @@ fn ttl_par_defaut() -> u64 {
 impl Push {
     /// Adresse publique sans `/` final.
     pub fn sujet(&self) -> Option<&str> {
-        self.url_publique.as_deref().map(|u| u.trim_end_matches('/'))
+        self.url_publique
+            .as_deref()
+            .map(|u| u.trim_end_matches('/'))
     }
 
     fn verifier(&self) -> anyhow::Result<()> {
@@ -348,7 +350,13 @@ mod tests {
         assert_eq!(config.messages.limite_par_minute, 20);
         assert_eq!(config.push.url_publique, None);
         assert_eq!(config.push.ttl_s, 86400);
-        assert!(config.push.hotes_autorises.iter().any(|h| h == "fcm.googleapis.com"));
+        assert!(
+            config
+                .push
+                .hotes_autorises
+                .iter()
+                .any(|h| h == "fcm.googleapis.com")
+        );
         assert!(!config.push.autoriser_http);
         let config = Config::depuis_texte(
             "[messages]\nconservation_jours = 7\nlimite_par_minute = 5\n\
@@ -359,7 +367,10 @@ mod tests {
         assert_eq!(config.push.sujet(), Some("https://ricochet.mawena.cloud"));
         assert_eq!(config.push.hotes_autorises, ["*.push.apple.com"]);
         assert!(Config::depuis_texte("[push]\nurl_publique = \"http://x\"").is_err());
-        assert!(Config::depuis_texte("[push]\nautoriser_http = true\nurl_publique = \"http://x\"").is_ok());
+        assert!(
+            Config::depuis_texte("[push]\nautoriser_http = true\nurl_publique = \"http://x\"")
+                .is_ok()
+        );
         assert!(Config::depuis_texte("[push]\nurl_publique = \"mailto:a@b.c\"").is_err());
         assert!(Config::depuis_texte("[push]\nttl_s = 0").is_err());
         assert!(Config::depuis_texte("[push]\nhotes_autorises = [\"\"]").is_err());

@@ -35,3 +35,20 @@ intervalle_etat_s = 30
 # utilisateurs = ["charles-gamligo"]
 # url = "https://portier.mawena.cloud"
 # deconnexion = "https://portier.mawena.cloud/"   # facultatif, `<url>/` par défaut
+
+# Messages des machines (envoyés par les programmes de chaque machine, via son agent).
+# [messages]
+# conservation_jours = 30     # suppression des messages du relais après ce délai
+# limite_par_minute = 20      # par machine ; au-delà : gardés, mais sans notification
+# delai_detail_s = 15         # attente maximale du détail demandé à l'agent
+
+# Notifications Web Push vers les appareils de l'opérateur (iPhone, Android, Chrome). Sans
+# url_publique, le relais ne pousse rien : l'adresse publique va dans la revendication `sub` des
+# jetons VAPID (les clés VAPID sont créées au premier démarrage et gardées dans la base).
+# [push]
+# url_publique = "https://ricochet.mawena.cloud"
+# ttl_s = 86400               # un appareil éteint reçoit la notification à son retour, sous 24 h
+# Hôtes de push joignables (défaut : fcm.googleapis.com, *.push.apple.com,
+# *.push.services.mozilla.com, *.notify.windows.com, *.push.microsoft.com).
+# hotes_autorises = ["fcm.googleapis.com", "*.push.apple.com"]
+# autoriser_http = false      # réservé aux essais : http:// et adresses locales

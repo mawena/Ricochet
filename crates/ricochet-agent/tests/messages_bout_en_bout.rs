@@ -138,7 +138,10 @@ async fn http(
     let (tete, mut corps) = texte.split_once("\r\n\r\n").unwrap();
     let statut = tete.split_whitespace().nth(1).unwrap().parse().unwrap();
     // Corps en morceaux (Transfer-Encoding: chunked) : recomposé.
-    if tete.to_ascii_lowercase().contains("transfer-encoding: chunked") {
+    if tete
+        .to_ascii_lowercase()
+        .contains("transfer-encoding: chunked")
+    {
         let mut brut = String::new();
         while let Some((taille, suite)) = corps.split_once("\r\n") {
             let n = usize::from_str_radix(taille.trim(), 16).unwrap();
@@ -160,7 +163,10 @@ async fn api(
     corps: Option<Value>,
 ) -> (u16, Value) {
     let (statut, texte) = http(adresse, JETON_OPERATEUR, methode, chemin, corps).await;
-    (statut, serde_json::from_str(&texte).unwrap_or(Value::String(texte)))
+    (
+        statut,
+        serde_json::from_str(&texte).unwrap_or(Value::String(texte)),
+    )
 }
 
 struct Banc {
@@ -210,8 +216,13 @@ async fn demarrer(nom: &str) -> Banc {
     ))
     .unwrap();
     let base = Base::en_memoire();
-    base.ajouter_machine("pc", Some("PC du bureau"), &jeton::empreinte("secret-pc"), 0)
-        .unwrap();
+    base.ajouter_machine(
+        "pc",
+        Some("PC du bureau"),
+        &jeton::empreinte("secret-pc"),
+        0,
+    )
+    .unwrap();
     let relais = Arc::new(Relais::new(config, base));
     let routeur = application(relais.clone());
     let auditeur = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -263,7 +274,10 @@ fn lancer_agent(banc: &Banc) -> tokio::task::JoinHandle<()> {
     })
 }
 
-async fn attendre<F: std::future::Future<Output = bool>>(raison: &str, mut condition: impl FnMut() -> F) {
+async fn attendre<F: std::future::Future<Output = bool>>(
+    raison: &str,
+    mut condition: impl FnMut() -> F,
+) {
     for _ in 0..100 {
         if condition().await {
             return;
@@ -275,7 +289,11 @@ async fn attendre<F: std::future::Future<Output = bool>>(raison: &str, mut condi
 
 async fn attendre_agent(banc: &Banc, connecte: bool) {
     attendre("état de la connexion de l'agent", || async {
-        banc.relais.registre.liste(&banc.relais.base.machines().unwrap())[0].connectee == connecte
+        banc.relais
+            .registre
+            .liste(&banc.relais.base.machines().unwrap())[0]
+            .connectee
+            == connecte
     })
     .await;
 }
@@ -296,7 +314,11 @@ struct Appareil {
 
 fn nouvel_appareil() -> Appareil {
     let secret = SecretKey::random(&mut OsRng);
-    let public = secret.public_key().to_encoded_point(false).as_bytes().to_vec();
+    let public = secret
+        .public_key()
+        .to_encoded_point(false)
+        .as_bytes()
+        .to_vec();
     let mut auth = [0u8; 16];
     OsRng.fill_bytes(&mut auth);
     Appareil {
@@ -353,7 +375,12 @@ async fn messages_de_bout_en_bout() {
     // Un abonnement vers un hôte non autorisé est refusé.
     let mut mauvais = appareil.abonnement(banc.push.port, "x");
     mauvais["endpoint"] = json!("http://localhost:9/push/x");
-    assert_eq!(api(banc.adresse, "POST", "/api/push/abonnements", Some(mauvais)).await.0, 400);
+    assert_eq!(
+        api(banc.adresse, "POST", "/api/push/abonnements", Some(mauvais))
+            .await
+            .0,
+        400
+    );
     let (statut, _) = api(
         banc.adresse,
         "POST",
@@ -375,7 +402,10 @@ async fn messages_de_bout_en_bout() {
     assert_eq!(reponse["ok"], true, "{reponse}");
     let id = reponse["id"].as_str().unwrap().to_owned();
     assert_eq!(socket(&banc, json!({"op": "etat"})).await["en_attente"], 1);
-    assert_eq!(socket(&banc, json!({"op": "etat"})).await["relais_connecte"], false);
+    assert_eq!(
+        socket(&banc, json!({"op": "etat"})).await["relais_connecte"],
+        false
+    );
 
     let agent = lancer_agent(&banc);
     attendre_agent(&banc, true).await;
@@ -414,7 +444,8 @@ async fn messages_de_bout_en_bout() {
     assert!(!liste.to_string().contains("confidentielle"));
     let (_, un) = api(banc.adresse, "GET", &format!("/api/messages/{id}"), None).await;
     assert!(!un.to_string().contains("confidentielle"));
-    assert_eq!(api(banc.adresse, "GET", &format!("/api/messages/{id}"), None).await.1["lu_le"].is_u64(), true);
+    let (_, relu) = api(banc.adresse, "GET", &format!("/api/messages/{id}"), None).await;
+    assert!(relu["lu_le"].is_u64());
 
     // Notification : déchiffrée par l'appareil, avec seulement les cinq champs permis.
     attendre("notification poussée", || async {
@@ -435,7 +466,10 @@ async fn messages_de_bout_en_bout() {
     )
     .unwrap();
     assert_eq!(revendications["sub"], "https://ricochet.test");
-    assert_eq!(revendications["aud"], format!("http://127.0.0.1:{}", banc.push.port));
+    assert_eq!(
+        revendications["aud"],
+        format!("http://127.0.0.1:{}", banc.push.port)
+    );
     let contenu = appareil.dechiffrer(&requete);
     assert_eq!(
         contenu,
@@ -445,18 +479,61 @@ async fn messages_de_bout_en_bout() {
     assert!(!String::from_utf8_lossy(&requete.corps).contains("confidentielle"));
 
     // Détail : demandé à l'agent au moment de l'affichage.
-    let (statut, texte) = http(banc.adresse, JETON_OPERATEUR, "GET", &format!("/api/messages/{id}/detail"), None).await;
+    let (statut, texte) = http(
+        banc.adresse,
+        JETON_OPERATEUR,
+        "GET",
+        &format!("/api/messages/{id}/detail"),
+        None,
+    )
+    .await;
     assert_eq!(statut, 200);
-    assert_eq!(texte, "ligne 1\nligne 2 : donnée client très confidentielle");
-    let (statut, _) = http(banc.adresse, JETON_OPERATEUR, "GET", "/api/messages/inconnu/detail", None).await;
+    assert_eq!(
+        texte,
+        "ligne 1\nligne 2 : donnée client très confidentielle"
+    );
+    let (statut, _) = http(
+        banc.adresse,
+        JETON_OPERATEUR,
+        "GET",
+        "/api/messages/inconnu/detail",
+        None,
+    )
+    .await;
     assert_eq!(statut, 404);
 
     // Réponse à un bouton : une seule fois ; l'agent la rend une seule fois.
     let chemin_reponse = format!("/api/messages/{id}/reponse");
-    assert_eq!(api(banc.adresse, "POST", &chemin_reponse, Some(json!({"bouton": "autre"}))).await.0, 400);
-    let (statut, corps) = api(banc.adresse, "POST", &chemin_reponse, Some(json!({"bouton": "resoudre"}))).await;
+    assert_eq!(
+        api(
+            banc.adresse,
+            "POST",
+            &chemin_reponse,
+            Some(json!({"bouton": "autre"}))
+        )
+        .await
+        .0,
+        400
+    );
+    let (statut, corps) = api(
+        banc.adresse,
+        "POST",
+        &chemin_reponse,
+        Some(json!({"bouton": "resoudre"})),
+    )
+    .await;
     assert_eq!((statut, &corps["transmise"]), (200, &json!(true)));
-    assert_eq!(api(banc.adresse, "POST", &chemin_reponse, Some(json!({"bouton": "resoudre"}))).await.0, 409);
+    assert_eq!(
+        api(
+            banc.adresse,
+            "POST",
+            &chemin_reponse,
+            Some(json!({"bouton": "resoudre"}))
+        )
+        .await
+        .0,
+        409
+    );
     let reponses = {
         let mut rendues = Value::Null;
         for _ in 0..50 {
@@ -472,7 +549,12 @@ async fn messages_de_bout_en_bout() {
     assert_eq!(reponses["reponses"][0]["id"], id.as_str());
     assert_eq!(reponses["reponses"][0]["bouton"], "resoudre");
     assert_eq!(reponses["reponses"][0]["par"], "jeton-api");
-    assert!(reponses["reponses"][0]["quand"].as_str().unwrap().ends_with('Z'));
+    assert!(
+        reponses["reponses"][0]["quand"]
+            .as_str()
+            .unwrap()
+            .ends_with('Z')
+    );
     let encore = socket(&banc, json!({"op": "reponses", "source": "cofiticket"})).await;
     assert!(encore["reponses"].as_array().unwrap().is_empty());
     // L'accusé de l'agent est revenu au relais.
@@ -498,26 +580,54 @@ async fn messages_de_bout_en_bout() {
     agent.abort();
     let _ = agent.await;
     attendre_agent(&banc, false).await;
-    let (statut, texte) = http(banc.adresse, JETON_OPERATEUR, "GET", &format!("/api/messages/{second}/detail"), None).await;
+    let (statut, texte) = http(
+        banc.adresse,
+        JETON_OPERATEUR,
+        "GET",
+        &format!("/api/messages/{second}/detail"),
+        None,
+    )
+    .await;
     assert_eq!(statut, 409);
     assert!(texte.contains("hors ligne"), "{texte}");
-    let (statut, corps) = api(banc.adresse, "POST", &format!("/api/messages/{second}/reponse"), Some(json!({"bouton": "ok"}))).await;
+    let (statut, corps) = api(
+        banc.adresse,
+        "POST",
+        &format!("/api/messages/{second}/reponse"),
+        Some(json!({"bouton": "ok"})),
+    )
+    .await;
     assert_eq!((statut, &corps["transmise"]), (200, &json!(false)));
     // Message envoyé pendant la coupure : gardé par l'agent.
-    let troisieme = socket(&banc, json!({"op": "envoyer", "source": "ccs", "titre": "pendant la coupure", "genre": "alerte"})).await;
+    let troisieme = socket(
+        &banc,
+        json!({"op": "envoyer", "source": "ccs", "titre": "pendant la coupure", "genre": "alerte"}),
+    )
+    .await;
     assert_eq!(troisieme["ok"], true);
-    assert_eq!(socket(&banc, json!({"op": "etat"})).await["relais_connecte"], false);
+    assert_eq!(
+        socket(&banc, json!({"op": "etat"})).await["relais_connecte"],
+        false
+    );
     assert_eq!(socket(&banc, json!({"op": "etat"})).await["en_attente"], 1);
 
     // Reconnexion : la réponse est livrée, le message en attente est envoyé.
     let _agent = lancer_agent(&banc);
     attendre("réponse livrée à la reconnexion", || async {
         let r = socket(&banc, json!({"op": "reponses", "source": "cofiticket"})).await;
-        r["reponses"].as_array().unwrap().first().is_some_and(|x| x["id"] == second.as_str() && x["bouton"] == "ok")
+        r["reponses"]
+            .as_array()
+            .unwrap()
+            .first()
+            .is_some_and(|x| x["id"] == second.as_str() && x["bouton"] == "ok")
     })
     .await;
     attendre("message de la coupure reçu", || async {
-        banc.relais.base.message(troisieme["id"].as_str().unwrap()).unwrap().is_some()
+        banc.relais
+            .base
+            .message(troisieme["id"].as_str().unwrap())
+            .unwrap()
+            .is_some()
     })
     .await;
     attendre("plus rien en attente", || async {
@@ -526,7 +636,12 @@ async fn messages_de_bout_en_bout() {
     .await;
     // Le genre « alerte » part en urgence haute.
     attendre("notification d'alerte", || async {
-        banc.push.recues.lock().unwrap().iter().any(|r| r.entetes["urgency"] == "high")
+        banc.push
+            .recues
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|r| r.entetes["urgency"] == "high")
     })
     .await;
 
@@ -538,7 +653,10 @@ async fn messages_de_bout_en_bout() {
     assert_eq!(appareil.dechiffrer(&essai)["titre"], "Notification d'essai");
     let (_, abonnements) = api(banc.adresse, "GET", "/api/push/abonnements", None).await;
     assert_eq!(abonnements.as_array().unwrap().len(), 1);
-    assert!(abonnements[0].get("endpoint").is_none(), "l'adresse reste secrète");
+    assert!(
+        abonnements[0].get("endpoint").is_none(),
+        "l'adresse reste secrète"
+    );
     banc.push.statut.store(410, Ordering::Relaxed);
     let (_, bilan) = api(banc.adresse, "POST", "/api/push/essai", None).await;
     assert_eq!(bilan["supprimes"], 1);
@@ -547,13 +665,46 @@ async fn messages_de_bout_en_bout() {
 
     // Suppression manuelle d'un appareil.
     banc.push.statut.store(201, Ordering::Relaxed);
-    let (_, ajoute) = api(banc.adresse, "POST", "/api/push/abonnements", Some(appareil.abonnement(banc.push.port, "Chrome"))).await;
+    let (_, ajoute) = api(
+        banc.adresse,
+        "POST",
+        "/api/push/abonnements",
+        Some(appareil.abonnement(banc.push.port, "Chrome")),
+    )
+    .await;
     let numero = ajoute["id"].as_i64().unwrap();
-    assert_eq!(api(banc.adresse, "DELETE", &format!("/api/push/abonnements/{numero}"), None).await.0, 204);
-    assert_eq!(api(banc.adresse, "DELETE", &format!("/api/push/abonnements/{numero}"), None).await.0, 404);
+    assert_eq!(
+        api(
+            banc.adresse,
+            "DELETE",
+            &format!("/api/push/abonnements/{numero}"),
+            None
+        )
+        .await
+        .0,
+        204
+    );
+    assert_eq!(
+        api(
+            banc.adresse,
+            "DELETE",
+            &format!("/api/push/abonnements/{numero}"),
+            None
+        )
+        .await
+        .0,
+        404
+    );
 
     // Tout est dans le journal d'audit.
-    let journal: Vec<String> = banc.relais.base.journal(200).unwrap().into_iter().map(|l| l.action).collect();
+    let journal: Vec<String> = banc
+        .relais
+        .base
+        .journal(200)
+        .unwrap()
+        .into_iter()
+        .map(|l| l.action)
+        .collect();
     for attendu in [
         "message_recu",
         "message_detail",
@@ -562,7 +713,10 @@ async fn messages_de_bout_en_bout() {
         "push_abonnement_retire",
         "push_essai",
     ] {
-        assert!(journal.iter().any(|a| a == attendu), "{attendu} absent de {journal:?}");
+        assert!(
+            journal.iter().any(|a| a == attendu),
+            "{attendu} absent de {journal:?}"
+        );
     }
     let _ = std::fs::remove_dir_all(&banc.dossier);
 }
@@ -587,15 +741,29 @@ async fn socket_refuse_a_un_compte_non_liste() {
     }
     let chemin = config.socket.clone();
     let reponse = tokio::task::spawn_blocking(move || {
-        messages_client::appeler(&chemin, &json!({"op": "envoyer", "source": "x", "titre": "t"})).unwrap()
+        messages_client::appeler(
+            &chemin,
+            &json!({"op": "envoyer", "source": "x", "titre": "t"}),
+        )
+        .unwrap()
     })
     .await
     .unwrap();
     assert_eq!(reponse["ok"], false);
-    assert!(reponse["erreur"].as_str().unwrap().contains("refusé"), "{reponse}");
+    assert!(
+        reponse["erreur"].as_str().unwrap().contains("refusé"),
+        "{reponse}"
+    );
     // Droits du socket : 0666, la liste fait foi.
     use std::os::unix::fs::PermissionsExt;
-    assert_eq!(std::fs::metadata(&config.socket).unwrap().permissions().mode() & 0o777, 0o666);
+    assert_eq!(
+        std::fs::metadata(&config.socket)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o666
+    );
     let _ = std::fs::remove_dir_all(&dossier);
 }
 

@@ -163,17 +163,22 @@ mod tests {
             .unwrap();
         assert_eq!((tunnel.ports, tunnel.maximum), (vec![22], 16));
         assert!(config.messages.is_none());
-        let messages = Config::depuis_texte(&format!("{base}[messages]\nutilisateurs = [\"charles\"]"))
-            .unwrap()
-            .messages
-            .unwrap();
-        assert_eq!(messages.socket, PathBuf::from("/run/ricochet-agent/messages.sock"));
-        assert_eq!(messages.conservation_jours, 30);
-        assert_eq!(messages.dossier_etat, PathBuf::from("/var/lib/ricochet-agent"));
-        assert!(Config::depuis_texte(&format!("{base}[messages]")).is_err());
-        assert!(
-            Config::depuis_texte(&format!("{base}[messages]\nutilisateurs = [\"\"]")).is_err()
+        let messages =
+            Config::depuis_texte(&format!("{base}[messages]\nutilisateurs = [\"charles\"]"))
+                .unwrap()
+                .messages
+                .unwrap();
+        assert_eq!(
+            messages.socket,
+            PathBuf::from("/run/ricochet-agent/messages.sock")
         );
+        assert_eq!(messages.conservation_jours, 30);
+        assert_eq!(
+            messages.dossier_etat,
+            PathBuf::from("/var/lib/ricochet-agent")
+        );
+        assert!(Config::depuis_texte(&format!("{base}[messages]")).is_err());
+        assert!(Config::depuis_texte(&format!("{base}[messages]\nutilisateurs = [\"\"]")).is_err());
         assert!(Config::depuis_texte(&format!("{base}[tunnel]\nports = []")).is_err());
         assert!(Config::depuis_texte(&format!("{base}[tunnel]")).is_err());
         let avec = Config::depuis_texte(

@@ -311,12 +311,13 @@ impl Registre {
                 reponse: envoi,
             },
         );
-        let envoye = session
-            .commandes
-            .try_send(Commande::Envoyer(RelaisVersAgent::DemandeDetail {
-                demande,
-                id: message.to_owned(),
-            }));
+        let envoye =
+            session
+                .commandes
+                .try_send(Commande::Envoyer(RelaisVersAgent::DemandeDetail {
+                    demande,
+                    id: message.to_owned(),
+                }));
         if let Err(e) = envoye {
             self.details.lock().unwrap().remove(&demande);
             return Err(match e {

@@ -549,7 +549,9 @@ impl Base {
                  WHERE machine = ?1 AND reponse_bouton IS NOT NULL AND reponse_livree = 0
                  ORDER BY reponse_le, id",
             )?
-            .query_map([machine], |l| Ok((l.get(0)?, l.get(1)?, l.get(2)?, l.get(3)?)))?
+            .query_map([machine], |l| {
+                Ok((l.get(0)?, l.get(1)?, l.get(2)?, l.get(3)?))
+            })?
             .collect()
         })
     }
@@ -715,39 +717,62 @@ mod tests {
     fn messages_et_reponses() {
         let base = Base::en_memoire();
         assert_eq!(
-            base.enregistrer_message("pc", &message("a", GenreMessage::Action), 100).unwrap(),
+            base.enregistrer_message("pc", &message("a", GenreMessage::Action), 100)
+                .unwrap(),
             Enregistre::Nouveau
         );
         assert_eq!(
-            base.enregistrer_message("pc", &message("a", GenreMessage::Action), 101).unwrap(),
+            base.enregistrer_message("pc", &message("a", GenreMessage::Action), 101)
+                .unwrap(),
             Enregistre::Deja
         );
         assert_eq!(
-            base.enregistrer_message("autre", &message("a", GenreMessage::Info), 101).unwrap(),
+            base.enregistrer_message("autre", &message("a", GenreMessage::Info), 101)
+                .unwrap(),
             Enregistre::AutreMachine
         );
-        base.enregistrer_message("pc", &message("b", GenreMessage::Alerte), 200).unwrap();
+        base.enregistrer_message("pc", &message("b", GenreMessage::Alerte), 200)
+            .unwrap();
         let (liste, non_lus) = base.messages(&FiltreMessages::default(), 10).unwrap();
-        assert_eq!((liste[0].id.as_str(), liste[1].id.as_str(), non_lus), ("b", "a", 2));
+        assert_eq!(
+            (liste[0].id.as_str(), liste[1].id.as_str(), non_lus),
+            ("b", "a", 2)
+        );
         assert_eq!(liste[1].genre, GenreMessage::Action);
         assert_eq!(liste[1].boutons[0].libelle, "OK");
         assert!(liste[1].detail && liste[1].reponse.is_none());
 
         base.marquer_lu("a", 300).unwrap();
         let (non_lus_seuls, total) = base
-            .messages(&FiltreMessages { non_lus: true, ..Default::default() }, 10)
+            .messages(
+                &FiltreMessages {
+                    non_lus: true,
+                    ..Default::default()
+                },
+                10,
+            )
             .unwrap();
         assert_eq!((non_lus_seuls.len(), total), (1, 1));
-        let filtre = FiltreMessages { source: Some("ccs".into()), ..Default::default() };
+        let filtre = FiltreMessages {
+            source: Some("ccs".into()),
+            ..Default::default()
+        };
         assert!(base.messages(&filtre, 10).unwrap().0.is_empty());
 
         // Une seule réponse ; livrée seulement après l'accusé de l'agent.
         assert!(base.repondre_message("a", "ok", "mawena", 400).unwrap());
         assert!(!base.repondre_message("a", "ok", "autre", 401).unwrap());
-        assert_eq!(base.reponses_a_livrer("pc").unwrap(), [("a".into(), "ok".into(), "mawena".into(), 400)]);
+        assert_eq!(
+            base.reponses_a_livrer("pc").unwrap(),
+            [("a".into(), "ok".into(), "mawena".into(), 400)]
+        );
         assert!(base.reponses_a_livrer("autre").unwrap().is_empty());
         base.reponse_livree("autre", "a").unwrap();
-        assert_eq!(base.reponses_a_livrer("pc").unwrap().len(), 1, "accusé d'une autre machine ignoré");
+        assert_eq!(
+            base.reponses_a_livrer("pc").unwrap().len(),
+            1,
+            "accusé d'une autre machine ignoré"
+        );
         base.reponse_livree("pc", "a").unwrap();
         assert!(base.reponses_a_livrer("pc").unwrap().is_empty());
         let reponse = base.message("a").unwrap().unwrap().reponse.unwrap();
@@ -761,15 +786,29 @@ mod tests {
     #[test]
     fn abonnements_et_reglages() {
         let base = Base::en_memoire();
-        let a = base.ajouter_abonnement("mawena", "https://x/1", "k", "s", "iPhone", 1).unwrap();
-        let b = base.ajouter_abonnement("mawena", "https://x/2", "k", "s", "Chrome", 2).unwrap();
+        let a = base
+            .ajouter_abonnement("mawena", "https://x/1", "k", "s", "iPhone", 1)
+            .unwrap();
+        let b = base
+            .ajouter_abonnement("mawena", "https://x/2", "k", "s", "Chrome", 2)
+            .unwrap();
         assert_ne!(a, b);
         // Même appareil : mise à jour, pas de doublon.
-        assert_eq!(base.ajouter_abonnement("mawena", "https://x/1", "k2", "s2", "iPhone 2", 3).unwrap(), a);
+        assert_eq!(
+            base.ajouter_abonnement("mawena", "https://x/1", "k2", "s2", "iPhone 2", 3)
+                .unwrap(),
+            a
+        );
         let liste = base.abonnements().unwrap();
         assert_eq!(liste.len(), 2);
-        assert_eq!((liste[0].p256dh.as_str(), liste[0].appareil.as_str()), ("k2", "iPhone 2"));
-        assert_eq!(base.supprimer_abonnement(a).unwrap().as_deref(), Some("iPhone 2"));
+        assert_eq!(
+            (liste[0].p256dh.as_str(), liste[0].appareil.as_str()),
+            ("k2", "iPhone 2")
+        );
+        assert_eq!(
+            base.supprimer_abonnement(a).unwrap().as_deref(),
+            Some("iPhone 2")
+        );
         assert_eq!(base.supprimer_abonnement(a).unwrap(), None);
         assert_eq!(base.abonnements().unwrap().len(), 1);
 

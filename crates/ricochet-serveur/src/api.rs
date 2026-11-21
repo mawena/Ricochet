@@ -81,10 +81,7 @@ pub fn routeur(relais: Arc<Relais>) -> Router<Arc<Relais>> {
         .route("/messages/{id}/detail", get(messages::detail))
         .route("/messages/{id}/reponse", post(messages::repondre))
         .route("/push/cle", get(push::cle))
-        .route(
-            "/push/abonnements",
-            get(push::liste).post(push::ajouter),
-        )
+        .route("/push/abonnements", get(push::liste).post(push::ajouter))
         .route("/push/abonnements/{id}", delete(push::retirer))
         .route("/push/essai", post(push::essai))
         .route("/audit", get(audit))
@@ -581,9 +578,24 @@ mod tests {
         let liste = appeler(&relais, "GET", "/api/messages", &[BEARER], None).await;
         assert_eq!(liste.statut, 200);
         assert!(liste.corps.contains("\"non_lus\":0"));
-        assert_eq!(appeler(&relais, "GET", "/api/messages/x", &[BEARER], None).await.statut, 404);
-        assert_eq!(appeler(&relais, "GET", "/api/push/cle", &[BEARER], None).await.statut, 503);
-        assert_eq!(appeler(&relais, "POST", "/api/push/essai", &[BEARER], None).await.statut, 503);
+        assert_eq!(
+            appeler(&relais, "GET", "/api/messages/x", &[BEARER], None)
+                .await
+                .statut,
+            404
+        );
+        assert_eq!(
+            appeler(&relais, "GET", "/api/push/cle", &[BEARER], None)
+                .await
+                .statut,
+            503
+        );
+        assert_eq!(
+            appeler(&relais, "POST", "/api/push/essai", &[BEARER], None)
+                .await
+                .statut,
+            503
+        );
     }
 
     #[tokio::test]
@@ -595,17 +607,32 @@ mod tests {
         let manifeste = appeler(&relais, "GET", "/manifest.json", &[], None).await;
         let m: serde_json::Value = serde_json::from_str(&manifeste.corps).unwrap();
         assert_eq!(m["display"], "standalone");
-        let tailles: Vec<_> = m["icons"].as_array().unwrap().iter().map(|i| i["sizes"].as_str().unwrap().to_owned()).collect();
+        let tailles: Vec<_> = m["icons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["sizes"].as_str().unwrap().to_owned())
+            .collect();
         assert!(tailles.contains(&"192x192".to_owned()) && tailles.contains(&"512x512".to_owned()));
         let accueil = appeler(&relais, "GET", "/", &[], None).await;
         assert!(accueil.corps.contains("apple-touch-icon"));
         // Les icônes sont de vrais PNG aux bonnes dimensions.
-        for (chemin, taille) in [("/icone-192.png", 192u32), ("/icone-512.png", 512), ("/apple-touch-icon.png", 180)] {
-            let requete = axum::http::Request::builder().uri(chemin).body(Body::empty()).unwrap();
+        for (chemin, taille) in [
+            ("/icone-192.png", 192u32),
+            ("/icone-512.png", 512),
+            ("/apple-touch-icon.png", 180),
+        ] {
+            let requete = axum::http::Request::builder()
+                .uri(chemin)
+                .body(Body::empty())
+                .unwrap();
             let reponse = application(relais.clone()).oneshot(requete).await.unwrap();
             assert_eq!(reponse.status(), 200, "{chemin}");
             assert_eq!(reponse.headers()["content-type"], "image/png");
-            let csp = reponse.headers()["content-security-policy"].to_str().unwrap().to_owned();
+            let csp = reponse.headers()["content-security-policy"]
+                .to_str()
+                .unwrap()
+                .to_owned();
             assert!(csp.contains("worker-src 'self'") && csp.contains("manifest-src 'self'"));
             assert!(!csp.contains("unsafe-eval") && !csp.contains("script-src 'self' 'unsafe"));
             let octets = to_bytes(reponse.into_body(), 1 << 20).await.unwrap();
@@ -616,7 +643,11 @@ mod tests {
         }
         // Aucune donnée reçue ne passe par innerHTML.
         let script = appeler(&relais, "GET", "/app.js", &[], None).await;
-        let code: String = script.corps.lines().filter(|l| !l.trim_start().starts_with("//")).collect();
+        let code: String = script
+            .corps
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
+            .collect();
         assert!(!code.contains("innerHTML") && !code.contains("insertAdjacentHTML"));
         assert!(!sw.corps.contains("innerHTML"));
     }

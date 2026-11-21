@@ -40,7 +40,17 @@ fichiers, actions rapides, machines par SSH (sans agent), bureau graphique (en d
   `tunnel.rs` ; un tunnel partage numéros et messages des terminaux (`Entree`, `Sortie`,
   `FermerTerminal`, `TerminalFerme`). Client `tunnel_client.rs` (`ricochet-agent tunnel`, pour
   `ssh -o ProxyCommand`). `jeton_tunnel_sha256` : jeton limité (routes de `ROUTES_TUNNEL`).
-- `crates/ricochet-agent/tests/bout_en_bout.rs` : vrai relais + vrai agent sur 127.0.0.1.
+- Messages des machines (branche `feature/messages-machines`) : agent `messages.rs` (socket Unix,
+  `SO_PEERCRED`, file persistante 0700/0600 dans `dossier_etat`, un JSON par message + détail à
+  part), `messages_client.rs` (`ricochet-agent message …`) ; relais `messages.rs` (réception,
+  routes, limite de débit), `push.rs` (abonnements, envoi, hôtes autorisés, client HTTP/TLS
+  maison), `webpush.rs` (RFC 8291 + VAPID RFC 8292, vecteur de l'annexe A) ; tables `messages`,
+  `abonnements_push`, `reglages` (clé VAPID). Le détail n'est jamais en base : demandé à l'agent
+  (`DemandeDetail`/`Detail`). Interface : `web/sw.js` (push, clic), vue Messages de `app.js`.
+  Protocole toujours en v1 (champs `#[serde(default)]`). p256/hkdf/aes-gcm en génération 0.13/0.12/0.10
+  (avec `sha2` 0.10 à côté du 0.11 du reste).
+- `crates/ricochet-agent/tests/bout_en_bout.rs` : vrai relais + vrai agent sur 127.0.0.1 ;
+  `messages_bout_en_bout.rs` : idem pour les messages, avec un faux service de push qui déchiffre.
 - Essai de l'interface sans écran : Chromium de Playwright dans `~/.cache/ms-playwright`
   (`chrome-headless-shell --remote-debugging-pipe`, piloté en CDP par un petit script Python).
 - Paquets : `scripts/construire-deb.sh` (dpkg-deb direct, sans debhelper ; `ricochet-serveur`,

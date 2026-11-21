@@ -464,13 +464,15 @@ mod tests {
             },
         };
         let texte = encoder(&message);
-        assert!(texte.starts_with(r#"{"type":"message","message":{"id":"ab12""#), "{texte}");
+        assert!(
+            texte.starts_with(r#"{"type":"message","message":{"id":"ab12""#),
+            "{texte}"
+        );
         assert_eq!(decoder::<AgentVersRelais>(&texte).unwrap(), message);
         // Un agent plus ancien n'envoie ni boutons ni détail.
-        let court: MessageMachine = serde_json::from_str(
-            r#"{"id":"a","source":"s","titre":"t","genre":"info","date":1}"#,
-        )
-        .unwrap();
+        let court: MessageMachine =
+            serde_json::from_str(r#"{"id":"a","source":"s","titre":"t","genre":"info","date":1}"#)
+                .unwrap();
         assert!(court.boutons.is_empty() && !court.detail && court.texte.is_empty());
         let reponse = RelaisVersAgent::Reponse {
             id: "ab12".into(),
@@ -495,7 +497,10 @@ mod tests {
             decoder::<AgentVersRelais>(&encoder(&detail)).unwrap(),
             detail
         );
-        assert_eq!(GenreMessage::depuis_texte("alerte"), Some(GenreMessage::Alerte));
+        assert_eq!(
+            GenreMessage::depuis_texte("alerte"),
+            Some(GenreMessage::Alerte)
+        );
         assert_eq!(GenreMessage::depuis_texte("autre"), None);
     }
 

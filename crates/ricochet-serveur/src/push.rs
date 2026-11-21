@@ -160,7 +160,11 @@ pub struct Cible {
 impl Cible {
     /// Origine du service (audience du jeton VAPID).
     pub fn origine(&self) -> String {
-        let (schema, defaut) = if self.https { ("https", 443) } else { ("http", 80) };
+        let (schema, defaut) = if self.https {
+            ("https", 443)
+        } else {
+            ("http", 80)
+        };
         if self.port == defaut {
             format!("{schema}://{}", self.hote)
         } else {
@@ -187,7 +191,10 @@ pub fn analyser_endpoint(adresse: &str, reglage: &config::Push) -> Result<Cible,
     if autorite.as_str().contains('@') {
         return Err("adresse d'abonnement invalide".into());
     }
-    let hote = uri.host().ok_or("adresse d'abonnement invalide")?.to_ascii_lowercase();
+    let hote = uri
+        .host()
+        .ok_or("adresse d'abonnement invalide")?
+        .to_ascii_lowercase();
     if !hote_autorise(&hote, &reglage.hotes_autorises) {
         return Err(format!("service de push non autorisé : {hote}"));
     }
@@ -325,7 +332,12 @@ impl Push {
 }
 
 /// Envoie la charge à un appareil.
-async fn envoyer_a(relais: &Relais, abonnement: &Abonnement, contenu: &[u8], charge: &Charge) -> Issue {
+async fn envoyer_a(
+    relais: &Relais,
+    abonnement: &Abonnement,
+    contenu: &[u8],
+    charge: &Charge,
+) -> Issue {
     let reglage = &relais.config.push;
     let Some(sujet) = reglage.sujet() else {
         return Issue::Echec("[push] url_publique absente de la configuration".into());
@@ -500,10 +512,15 @@ pub(crate) async fn ajouter(
         .ok()
         .is_some_and(|a| a.len() == 16);
     if !cle_valide || !auth_valide {
-        return Ok(refus(StatusCode::BAD_REQUEST, "clés d'abonnement invalides"));
+        return Ok(refus(
+            StatusCode::BAD_REQUEST,
+            "clés d'abonnement invalides",
+        ));
     }
     let existants = relais.base.abonnements()?;
-    if existants.len() >= ABONNEMENTS_MAX && !existants.iter().any(|a| a.endpoint == nouveau.endpoint) {
+    if existants.len() >= ABONNEMENTS_MAX
+        && !existants.iter().any(|a| a.endpoint == nouveau.endpoint)
+    {
         return Ok(refus(
             StatusCode::CONFLICT,
             "trop d'appareils abonnés : en retirer avant d'en ajouter",
@@ -629,7 +646,8 @@ mod tests {
     #[test]
     fn adresses_de_abonnement() {
         let reglage = config::Push::default();
-        let cible = analyser_endpoint("https://fcm.googleapis.com/fcm/send/abc?x=1", &reglage).unwrap();
+        let cible =
+            analyser_endpoint("https://fcm.googleapis.com/fcm/send/abc?x=1", &reglage).unwrap();
         assert_eq!(cible.hote, "fcm.googleapis.com");
         assert_eq!((cible.port, cible.https), (443, true));
         assert_eq!(cible.chemin, "/fcm/send/abc?x=1");
@@ -647,7 +665,13 @@ mod tests {
         ] {
             assert!(analyser_endpoint(refusee, &reglage).is_err(), "{refusee}");
         }
-        assert!(analyser_endpoint(&format!("https://web.push.apple.com/{}", "a".repeat(2100)), &reglage).is_err());
+        assert!(
+            analyser_endpoint(
+                &format!("https://web.push.apple.com/{}", "a".repeat(2100)),
+                &reglage
+            )
+            .is_err()
+        );
         // Mode d'essai : http et hôte local, mais seulement si l'hôte est listé.
         let essai = config::Push {
             autoriser_http: true,
@@ -663,13 +687,32 @@ mod tests {
     #[test]
     fn adresses_publiques() {
         for locale in [
-            "127.0.0.1", "10.0.0.1", "192.168.1.1", "172.16.0.1", "169.254.169.254", "0.0.0.0",
-            "100.64.0.1", "224.0.0.1", "::1", "::", "fc00::1", "fd12::1", "fe80::1",
-            "::ffff:127.0.0.1", "::ffff:10.0.0.1", "ff02::1",
+            "127.0.0.1",
+            "10.0.0.1",
+            "192.168.1.1",
+            "172.16.0.1",
+            "169.254.169.254",
+            "0.0.0.0",
+            "100.64.0.1",
+            "224.0.0.1",
+            "::1",
+            "::",
+            "fc00::1",
+            "fd12::1",
+            "fe80::1",
+            "::ffff:127.0.0.1",
+            "::ffff:10.0.0.1",
+            "ff02::1",
         ] {
             assert!(!adresse_publique(locale.parse().unwrap()), "{locale}");
         }
-        for publique in ["8.8.8.8", "17.253.0.1", "142.250.0.1", "2a00:1450::1", "::ffff:8.8.8.8"] {
+        for publique in [
+            "8.8.8.8",
+            "17.253.0.1",
+            "142.250.0.1",
+            "2a00:1450::1",
+            "::ffff:8.8.8.8",
+        ] {
             assert!(adresse_publique(publique.parse().unwrap()), "{publique}");
         }
     }
