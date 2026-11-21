@@ -6,6 +6,8 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.6.0] - 2026-11-21
+
 ### Ajouté
 - **Applications web des machines** : une application qui écoute sur 127.0.0.1 (par exemple la
   fenêtre de CofiTicket) s'ouvre depuis l'interface de Ricochet, derrière le mot de passe et le
