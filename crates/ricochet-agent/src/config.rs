@@ -1,6 +1,6 @@
 //! Configuration de l'agent, lue dans un fichier TOML.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, bail};
 use serde::Deserialize;
@@ -23,6 +23,43 @@ pub struct Config {
     /// Tunnels vers des ports locaux : désactivés si la section `[tunnel]` est absente.
     #[serde(default)]
     pub tunnel: Option<ConfigTunnel>,
+    /// Messages des programmes de la machine : désactivés si la section `[messages]` est absente.
+    #[serde(default)]
+    pub messages: Option<ConfigMessages>,
+}
+
+/// Section `[messages]` : un socket Unix par lequel les programmes locaux envoient des messages
+/// à l'opérateur (notification sur ses appareils) et lisent ses réponses.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigMessages {
+    /// Comptes du système autorisés à parler au socket (root l'est toujours).
+    pub utilisateurs: Vec<String>,
+    /// Chemin du socket (dossier 0755 créé par systemd : `RuntimeDirectory=ricochet-agent`).
+    #[serde(default = "socket_par_defaut")]
+    pub socket: PathBuf,
+    /// Durée de garde des messages et de leurs détails sur la machine.
+    #[serde(default = "conservation_par_defaut")]
+    pub conservation_jours: u64,
+    /// Dossier où l'agent garde la file d'attente (0700) : messages pas encore acceptés par le
+    /// relais, détails, réponses non lues (`StateDirectory=ricochet-agent`).
+    #[serde(default = "dossier_etat_par_defaut")]
+    pub dossier_etat: PathBuf,
+}
+
+/// Chemin du socket des messages, par défaut.
+pub const SOCKET_MESSAGES: &str = "/run/ricochet-agent/messages.sock";
+
+fn socket_par_defaut() -> PathBuf {
+    PathBuf::from(SOCKET_MESSAGES)
+}
+
+fn conservation_par_defaut() -> u64 {
+    30
+}
+
+fn dossier_etat_par_defaut() -> PathBuf {
+    PathBuf::from("/var/lib/ricochet-agent")
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -93,6 +130,14 @@ impl Config {
         if config.tunnel.as_ref().is_some_and(|t| t.ports.is_empty()) {
             bail!("tunnel.ports ne peut pas être vide");
         }
+        if let Some(messages) = &config.messages {
+            if messages.utilisateurs.iter().any(|u| u.trim().is_empty()) {
+                bail!("messages.utilisateurs ne peut pas contenir de nom vide");
+            }
+            if messages.conservation_jours == 0 {
+                bail!("messages.conservation_jours doit être supérieur à 0");
+            }
+        }
         Ok(config)
     }
 }
@@ -117,6 +162,23 @@ mod tests {
             .tunnel
             .unwrap();
         assert_eq!((tunnel.ports, tunnel.maximum), (vec![22], 16));
+        assert!(config.messages.is_none());
+        let messages =
+            Config::depuis_texte(&format!("{base}[messages]\nutilisateurs = [\"charles\"]"))
+                .unwrap()
+                .messages
+                .unwrap();
+        assert_eq!(
+            messages.socket,
+            PathBuf::from("/run/ricochet-agent/messages.sock")
+        );
+        assert_eq!(messages.conservation_jours, 30);
+        assert_eq!(
+            messages.dossier_etat,
+            PathBuf::from("/var/lib/ricochet-agent")
+        );
+        assert!(Config::depuis_texte(&format!("{base}[messages]")).is_err());
+        assert!(Config::depuis_texte(&format!("{base}[messages]\nutilisateurs = [\"\"]")).is_err());
         assert!(Config::depuis_texte(&format!("{base}[tunnel]\nports = []")).is_err());
         assert!(Config::depuis_texte(&format!("{base}[tunnel]")).is_err());
         let avec = Config::depuis_texte(

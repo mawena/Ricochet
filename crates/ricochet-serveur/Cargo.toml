@@ -29,6 +29,13 @@ sha1.workspace = true
 data-encoding.workspace = true
 qrcode.workspace = true
 rpassword.workspace = true
+p256.workspace = true
+hkdf.workspace = true
+aes-gcm.workspace = true
+sha2-010.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+webpki-roots.workspace = true
 
 [dev-dependencies]
 tower.workspace = true

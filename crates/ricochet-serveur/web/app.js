@@ -114,12 +114,16 @@ function afficherTableau(compte) {
   $("#ecran-connexion").hidden = true;
   $("#ecran-tableau").hidden = false;
   chargerMachines();
+  majPastille();
   clearInterval(minuterie);
   minuterie = setInterval(() => {
-    if (!document.hidden && !$("#onglet-machines").hidden && !terminal && !fichiers) {
-      chargerMachines();
-    }
+    if (document.hidden || terminal || fichiers) return;
+    if (!$("#onglet-machines").hidden) chargerMachines();
+    else if (!$("#onglet-messages").hidden && !messageOuvert) chargerMessages();
+    else majPastille();
   }, PERIODE_MS);
+  // Ouverture par le toucher d'une notification : l'adresse porte l'identifiant du message.
+  surChangementAdresse();
 }
 
 // --- Machines ---
@@ -564,6 +568,14 @@ const ACTIONS = {
   terminal_ferme: "Terminal fermé",
   fichier_recu: "Fichier envoyé sur la machine",
   fichier_telecharge: "Fichier téléchargé",
+  message_recu: "Message reçu",
+  message_detail: "Détail de message consulté",
+  message_reponse: "Réponse à un message",
+  message_refuse: "Message refusé",
+  message_limite: "Messages trop fréquents (pas de notification)",
+  push_abonnement_ajoute: "Appareil abonné aux notifications",
+  push_abonnement_retire: "Appareil retiré des notifications",
+  push_essai: "Notification d'essai",
   compte_cree: "Compte créé",
   compte_supprime: "Compte supprimé",
 };
@@ -587,14 +599,360 @@ async function chargerJournal() {
   }
 }
 
-function changerOnglet(nom) {
+// --- Messages des machines ---
+
+const GENRES = { info: "Info", action: "Action", alerte: "Alerte" };
+let messageOuvert = null;
+let nonLus = 0;
+
+function majCompteur(n) {
+  nonLus = n;
+  const pastille = $("#pastille-messages");
+  pastille.textContent = n > 99 ? "99+" : String(n);
+  pastille.hidden = n === 0;
+}
+
+function ligneMessage(m) {
+  const li = element("li", `genre-${m.genre}${m.lu_le ? "" : " non-lu"}`);
+  li.tabIndex = 0;
+  li.append(element("span", "titre", m.titre));
+  if (m.texte) li.append(element("p", "texte", m.texte));
+  const reponse = m.reponse ? ` · réponse : ${libelleBouton(m, m.reponse.bouton)}` : "";
+  li.append(element("p", "meta",
+    `${GENRES[m.genre] || m.genre} · ${m.machine} · ${m.source} · ${ilYa(m.recu_le)}${reponse}`));
+  const ouvrir = () => ouvrirMessage(m.id);
+  li.addEventListener("click", ouvrir);
+  li.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      ouvrir();
+    }
+  });
+  return li;
+}
+
+function libelleBouton(m, id) {
+  return m.boutons.find((b) => b.id === id)?.libelle || id;
+}
+
+async function chargerMessages() {
+  try {
+    const rendu = await api("GET", "/messages?limite=100");
+    majCompteur(rendu.non_lus);
+    $("#liste-messages").replaceChildren(...rendu.messages.map(ligneMessage));
+    $("#aucun-message").hidden = rendu.messages.length > 0;
+  } catch (erreur) {
+    if (erreur.statut !== 401) message(`Messages : ${erreur.message}`, true);
+  }
+}
+
+// Seule la pastille des non lus est tenue à jour hors de l'onglet Messages.
+async function majPastille() {
+  try {
+    const rendu = await api("GET", "/messages?limite=1");
+    majCompteur(rendu.non_lus);
+  } catch {
+    // Silencieux : relais plus ancien ou session expirée.
+  }
+}
+
+function fermerMessage() {
+  messageOuvert = null;
+  $("#vue-detail-message").hidden = true;
+  $("#vue-liste-messages").hidden = false;
+  if (location.hash.startsWith("#message/")) {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+  chargerMessages();
+}
+
+async function ouvrirMessage(id) {
+  changerOnglet("messages", false);
+  try {
+    const m = await api("GET", `/messages/${encodeURIComponent(id)}`);
+    messageOuvert = m;
+    $("#vue-liste-messages").hidden = true;
+    $("#vue-detail-message").hidden = false;
+    $("#detail-titre").textContent = m.titre;
+    $("#detail-meta").textContent =
+      `${GENRES[m.genre] || m.genre} · ${m.machine} · ${m.source} · ${date(m.recu_le)}`;
+    $("#detail-texte").textContent = m.texte;
+    afficherReponse(m);
+    const boutons = $("#detail-boutons");
+    boutons.replaceChildren(...m.boutons.map((b) => {
+      const bouton = element("button", null, b.libelle);
+      bouton.type = "button";
+      bouton.dataset.bouton = b.id;
+      bouton.disabled = Boolean(m.reponse);
+      bouton.addEventListener("click", () => repondreMessage(m, b.id));
+      return bouton;
+    }));
+    $("#detail-bloc").hidden = !m.detail;
+    if (m.detail) chargerDetail(m.id);
+    majPastille();
+  } catch (erreur) {
+    if (erreur.statut === 404) {
+      message("Ce message n'existe plus (purgé ?).", true);
+      fermerMessage();
+    } else if (erreur.statut !== 401) {
+      message(`Message : ${erreur.message}`, true);
+    }
+  }
+}
+
+function afficherReponse(m) {
+  const zone = $("#detail-reponse");
+  if (!m.reponse) {
+    zone.hidden = true;
+    return;
+  }
+  const etat = m.reponse.livree ? "transmise à la machine" : "en attente de la machine";
+  zone.textContent = `Réponse envoyée : ${libelleBouton(m, m.reponse.bouton)} ` +
+    `(${m.reponse.par}, ${date(m.reponse.quand)}) · ${etat}`;
+  zone.hidden = false;
+}
+
+// Le détail n'est pas stocké par le relais : il est demandé à la machine à chaque affichage.
+async function chargerDetail(id) {
+  const etat = $("#detail-etat");
+  const contenu = $("#detail-contenu");
+  contenu.hidden = true;
+  $("#copier-detail").hidden = true;
+  $("#recharger-detail").hidden = true;
+  etat.textContent = "Lecture du détail sur la machine…";
+  try {
+    const reponse = await fetch(`/api/messages/${encodeURIComponent(id)}/detail`, {
+      credentials: "same-origin",
+      headers: { "X-Ricochet": "1" },
+    });
+    const texte = await reponse.text();
+    if (messageOuvert?.id !== id) return;
+    if (!reponse.ok) {
+      etat.textContent = texte || `erreur ${reponse.status}`;
+      $("#recharger-detail").hidden = false;
+      return;
+    }
+    etat.textContent = "Détail lu sur la machine (non enregistré par le relais).";
+    contenu.textContent = texte;
+    contenu.hidden = false;
+    $("#copier-detail").hidden = false;
+  } catch {
+    etat.textContent = "Relais injoignable.";
+    $("#recharger-detail").hidden = false;
+  }
+}
+
+async function copierDetail() {
+  const bouton = $("#copier-detail");
+  try {
+    await navigator.clipboard.writeText($("#detail-contenu").textContent);
+    bouton.textContent = "Copié";
+  } catch {
+    // Pas d'accès au presse-papiers : sélection pour copier à la main.
+    const plage = document.createRange();
+    plage.selectNodeContents($("#detail-contenu"));
+    getSelection().removeAllRanges();
+    getSelection().addRange(plage);
+    bouton.textContent = "Sélectionné : copiez";
+  }
+  setTimeout(() => { bouton.textContent = "Copier"; }, 2000);
+}
+
+async function repondreMessage(m, bouton) {
+  for (const b of document.querySelectorAll("#detail-boutons button")) b.disabled = true;
+  try {
+    await api("POST", `/messages/${encodeURIComponent(m.id)}/reponse`, { bouton });
+    message("");
+    await ouvrirMessage(m.id);
+  } catch (erreur) {
+    message(`Réponse : ${erreur.message}`, true);
+    await ouvrirMessage(m.id);
+  }
+}
+
+// --- Notifications Web Push ---
+
+function pushPossible() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function octetsDeBase64Url(texte) {
+  const base64 = texte.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(texte.length / 4) * 4, "=");
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
+
+async function empreinteSha256(texte) {
+  const resume = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texte));
+  return [...new Uint8Array(resume)].map((o) => o.toString(16).padStart(2, "0")).join("");
+}
+
+function nomAppareil() {
+  const ua = navigator.userAgent;
+  const systeme = /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android"
+    : /Windows/.test(ua) ? "Windows" : /Mac/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "appareil";
+  const navigateur = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox"
+    : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "navigateur";
+  return `${navigateur} sous ${systeme}`;
+}
+
+async function abonnementLocal() {
+  if (!pushPossible()) return null;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    return await registration.pushManager.getSubscription();
+  } catch {
+    return null;
+  }
+}
+
+async function majNotifications() {
+  const etat = $("#etat-notifications");
+  const activer = $("#activer-notifications");
+  const liste = $("#appareils");
+  let local = null;
+  let texte;
+  if (!pushPossible()) {
+    texte = /iPhone|iPad/.test(navigator.userAgent)
+      ? "Sur iPhone (iOS 16.4 ou plus) : Partager, « Sur l'écran d'accueil », puis ouvrez " +
+        "Ricochet depuis son icône pour activer les notifications."
+      : "Ce navigateur ne sait pas recevoir de notifications.";
+    activer.disabled = true;
+  } else if (Notification.permission === "denied") {
+    texte = "Les notifications sont bloquées pour ce site : les autoriser dans les réglages du navigateur.";
+    activer.disabled = true;
+  } else {
+    local = await abonnementLocal();
+    activer.disabled = Boolean(local);
+    texte = local ? "Les notifications sont actives sur cet appareil."
+      : "Les notifications ne sont pas activées sur cet appareil.";
+  }
+  etat.textContent = texte;
+  $("#essai-notification").disabled = false;
+  try {
+    const appareils = await api("GET", "/push/abonnements");
+    const mienne = local ? await empreinteSha256(local.endpoint) : null;
+    liste.replaceChildren(...appareils.map((a) => {
+      const li = element("li");
+      const nom = element("span", "nom-appareil",
+        `${a.appareil}${a.empreinte === mienne ? " (cet appareil)" : ""} · ${a.compte} · ${date(a.cree_le)}`);
+      const retirer = element("button", "discret danger", "Retirer");
+      retirer.type = "button";
+      retirer.addEventListener("click", () => retirerAppareil(a, a.empreinte === mienne ? local : null));
+      li.append(nom, retirer);
+      return li;
+    }));
+  } catch (erreur) {
+    if (erreur.statut !== 401) etat.textContent = `${texte} (liste des appareils : ${erreur.message})`;
+  }
+}
+
+// Le geste de l'utilisateur (ce clic) est exigé par iOS pour demander la permission.
+async function activerNotifications() {
+  const bouton = $("#activer-notifications");
+  bouton.disabled = true;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      message("Notifications refusées : les autoriser dans les réglages du navigateur.", true);
+      return;
+    }
+    let cle;
+    try {
+      cle = (await api("GET", "/push/cle")).cle;
+    } catch (erreur) {
+      message(erreur.statut === 503 ? erreur.message : `Clé des notifications : ${erreur.message}`, true);
+      return;
+    }
+    const registration = await navigator.serviceWorker.ready;
+    const abonnement = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: octetsDeBase64Url(cle),
+    });
+    try {
+      await api("POST", "/push/abonnements", { ...abonnement.toJSON(), appareil: nomAppareil() });
+    } catch (erreur) {
+      await abonnement.unsubscribe();
+      throw erreur;
+    }
+    message("Notifications activées sur cet appareil.");
+  } catch (erreur) {
+    message(`Notifications : ${erreur.message}`, true);
+  } finally {
+    await majNotifications();
+  }
+}
+
+async function retirerAppareil(appareil, local) {
+  if (!confirm(`Retirer « ${appareil.appareil} » des notifications ?`)) return;
+  try {
+    await api("DELETE", `/push/abonnements/${appareil.id}`);
+    if (local) await local.unsubscribe();
+  } catch (erreur) {
+    message(`Retrait : ${erreur.message}`, true);
+  }
+  await majNotifications();
+}
+
+async function essaiNotification() {
+  const bouton = $("#essai-notification");
+  bouton.disabled = true;
+  try {
+    const bilan = await api("POST", "/push/essai");
+    message(bilan.appareils === 0
+      ? "Aucun appareil abonné : activez d'abord les notifications."
+      : `Essai : ${bilan.envoyes} envoyée(s), ${bilan.echecs} échec(s), ${bilan.supprimes} appareil(s) retiré(s).`,
+    bilan.envoyes === 0);
+  } catch (erreur) {
+    message(`Essai : ${erreur.message}`, true);
+  } finally {
+    bouton.disabled = false;
+    majNotifications();
+  }
+}
+
+function demarrerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+  // Toucher une notification alors que l'interface est ouverte : le service worker nous écrit.
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data?.type === "ouvrir-message" && minuterie) ouvrirDepuisAdresse(e.data.id);
+  });
+}
+
+const IDENTIFIANT_MESSAGE = /^[A-Za-z0-9_-]{1,64}$/;
+
+function ouvrirDepuisAdresse(id) {
+  if (id && IDENTIFIANT_MESSAGE.test(id)) {
+    ouvrirMessage(id);
+  } else {
+    changerOnglet("messages");
+  }
+}
+
+function surChangementAdresse() {
+  const reste = location.hash.startsWith("#message/") ? location.hash.slice("#message/".length) : null;
+  if (reste !== null && minuterie) {
+    ouvrirDepuisAdresse(decodeURIComponent(reste));
+  }
+}
+
+function changerOnglet(nom, ouvrirListe = true) {
   for (const bouton of document.querySelectorAll("[data-onglet]")) {
     bouton.classList.toggle("actif", bouton.dataset.onglet === nom);
   }
   $("#onglet-machines").hidden = nom !== "machines";
+  $("#onglet-messages").hidden = nom !== "messages";
   $("#onglet-journal").hidden = nom !== "journal";
   if (nom === "journal") chargerJournal();
-  else chargerMachines();
+  else if (nom === "messages") {
+    if (ouvrirListe) {
+      messageOuvert = null;
+      $("#vue-detail-message").hidden = true;
+      $("#vue-liste-messages").hidden = false;
+      chargerMessages();
+    }
+    majNotifications();
+  } else chargerMachines();
 }
 
 // --- Connexion ---
@@ -659,6 +1017,13 @@ async function demarrer() {
   $("#formulaire-ajout").addEventListener("submit", ajouterMachine);
   $("#deconnexion").addEventListener("click", seDeconnecter);
   $("#copier").addEventListener("click", copierConfig);
+  $("#retour-messages").addEventListener("click", fermerMessage);
+  $("#copier-detail").addEventListener("click", copierDetail);
+  $("#recharger-detail").addEventListener("click", () => messageOuvert && chargerDetail(messageOuvert.id));
+  $("#activer-notifications").addEventListener("click", activerNotifications);
+  $("#essai-notification").addEventListener("click", essaiNotification);
+  window.addEventListener("hashchange", surChangementAdresse);
+  demarrerServiceWorker();
   $("#fermer-jeton").addEventListener("click", fermerJeton);
   $("#fermer-terminal").addEventListener("click", fermerTerminal);
   $("#fermer-fichiers").addEventListener("click", fermerFichiers);
@@ -690,6 +1055,7 @@ async function demarrer() {
   }
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && minuterie && !$("#onglet-machines").hidden) chargerMachines();
+    else if (!document.hidden && minuterie) majPastille();
   });
   await chargerPortier();
   try {

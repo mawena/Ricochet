@@ -28,3 +28,4 @@ libc.workspace = true
 ricochet-serveur.workspace = true
 axum.workspace = true
 tower.workspace = true
+p256.workspace = true

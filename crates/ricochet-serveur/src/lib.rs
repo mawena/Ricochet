@@ -11,11 +11,14 @@ pub mod config;
 pub mod jeton;
 pub mod registre;
 pub mod totp;
+pub mod webpush;
 
 mod agents;
 mod api;
 mod fichiers;
+mod messages;
 mod portier;
+mod push;
 mod terminal;
 mod tunnel;
 mod web;
@@ -44,10 +47,16 @@ pub struct Relais {
     pub essais_compte: comptes::Limiteur,
     /// Sessions de l'interface ouvertes par Portier (en mémoire).
     pub sessions_portier: portier::Sessions,
+    /// Clés VAPID et client des services de push.
+    pub push: push::Push,
+    /// Limite de débit des messages, par machine.
+    pub limite_messages: messages::Debit,
 }
 
 impl Relais {
     pub fn new(config: Config, base: Base) -> Self {
+        // Les clés VAPID sont créées au premier démarrage : sans la base, le relais ne sert à rien.
+        let push = push::Push::charger(&base).expect("clés VAPID du relais");
         Self {
             config,
             base,
@@ -55,6 +64,8 @@ impl Relais {
             essais_adresse: comptes::Limiteur::new(comptes::ECHECS_MAX_ADRESSE),
             essais_compte: comptes::Limiteur::new(comptes::ECHECS_MAX_COMPTE),
             sessions_portier: portier::Sessions::default(),
+            push,
+            limite_messages: messages::Debit::default(),
         }
     }
 
@@ -118,6 +129,18 @@ async fn purger_sessions(relais: Arc<Relais>) {
         if let Err(erreur) = relais.base.purger_sessions(registre::maintenant()) {
             tracing::warn!("purge des sessions : {erreur:#}");
         }
+        let limite = registre::maintenant().saturating_sub(
+            relais
+                .config
+                .messages
+                .conservation_jours
+                .saturating_mul(86400),
+        );
+        match relais.base.purger_messages(limite) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("{n} message(s) de machine purgé(s)"),
+            Err(erreur) => tracing::warn!("purge des messages : {erreur:#}"),
+        }
     }
 }
 
@@ -129,7 +152,7 @@ async fn entetes_de_securite(mut reponse: Response) -> Response {
     for (nom, valeur) in [
         (
             header::CONTENT_SECURITY_POLICY,
-            "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; \
+            "default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; \
              img-src 'self' data:; manifest-src 'self'; form-action 'self'; \
              frame-ancestors 'none'; base-uri 'none'",
         ),

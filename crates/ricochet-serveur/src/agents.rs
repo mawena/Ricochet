@@ -110,8 +110,18 @@ async fn session(mut socket: WebSocket, relais: Arc<Relais>, adresse: String) {
         intervalle_etat_s: relais.config.intervalle_etat_s,
     };
 
-    if envoyer(&mut socket, &bienvenue).await {
-        boucle(&mut socket, &relais, &id, numero, &mut commandes).await;
+    // Les réponses que l'agent n'a pas encore accusées (il était hors ligne) repartent d'abord.
+    let mut accueilli = envoyer(&mut socket, &bienvenue).await;
+    if accueilli {
+        for reponse in crate::messages::reponses_en_attente(&relais, &id) {
+            if !envoyer(&mut socket, &reponse).await {
+                accueilli = false;
+                break;
+            }
+        }
+    }
+    if accueilli {
+        boucle(&mut socket, &relais, &adresse, &id, numero, &mut commandes).await;
     }
     relais.registre.fermer_session(&id, numero);
     relais.noter(None, &adresse, "agent_deconnecte", &id);
@@ -119,7 +129,8 @@ async fn session(mut socket: WebSocket, relais: Arc<Relais>, adresse: String) {
 
 async fn boucle(
     socket: &mut WebSocket,
-    relais: &Relais,
+    relais: &Arc<Relais>,
+    adresse: &str,
     id: &str,
     numero: u64,
     commandes: &mut tokio::sync::mpsc::Receiver<Commande>,
@@ -180,6 +191,26 @@ async fn boucle(
                         }
                         Ok(AgentVersRelais::Fichiers { requete, reponse }) => {
                             relais.registre.reponse_fichiers(id, numero, requete, reponse);
+                        }
+                        Ok(AgentVersRelais::Message { message }) => {
+                            let identifiant = message.id.clone();
+                            if crate::messages::recevoir(relais, id, adresse, message)
+                                && !envoyer(socket, &RelaisVersAgent::MessageRecu { id: identifiant }).await
+                            {
+                                return;
+                            }
+                        }
+                        Ok(AgentVersRelais::Detail { demande, detail, erreur }) => {
+                            let reponse = match detail {
+                                Some(texte) => Ok(texte),
+                                None => Err(erreur.unwrap_or_else(|| "détail indisponible".into())),
+                            };
+                            relais.registre.reponse_detail(id, numero, demande, reponse);
+                        }
+                        Ok(AgentVersRelais::ReponseRecue { id: message }) => {
+                            if let Err(erreur) = relais.base.reponse_livree(id, &message) {
+                                tracing::error!("accusé de réponse : {erreur:#}");
+                            }
                         }
                         Ok(AgentVersRelais::Bonjour { .. }) => {
                             tracing::warn!("agent « {id} » : second bonjour ignoré");

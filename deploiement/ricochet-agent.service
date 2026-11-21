@@ -9,6 +9,13 @@ ConditionPathExists=/etc/ricochet/agent.toml
 ExecStart=/usr/bin/ricochet-agent executer --config /etc/ricochet/agent.toml
 Restart=always
 RestartSec=5
+# Messages des programmes de la machine (section [messages]) : le socket est dans un dossier
+# lisible de tous (0755, créé et vidé par systemd) ; la file d'attente persistante est dans un
+# dossier réservé à root (0700), pour survivre à un redémarrage de l'agent.
+RuntimeDirectory=ricochet-agent
+RuntimeDirectoryMode=0755
+StateDirectory=ricochet-agent
+StateDirectoryMode=0700
 
 [Install]
 WantedBy=multi-user.target
