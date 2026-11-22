@@ -88,10 +88,15 @@ demande le premier code pour vérifier. `compte liste` et `compte supprimer <nom
 ### 3. Se connecter et ajouter les machines
 
 Ouvrir `https://ricochet.mawena.cloud` : compte, mot de passe et code à 6 chiffres.
-« Ajouter une machine » crée son jeton et affiche **une seule fois** la commande qui installe
-l'agent sur la machine, écrit sa configuration et le démarre (indiquer un utilisateur pour
-activer le terminal avec son shell et les fichiers avec ses droits) ; le relais n'en garde que l'empreinte SHA-256. « Révoquer » rend le jeton inutile et
-coupe la connexion de l'agent.
+« Ajouter une machine » crée son jeton et donne **une ligne à coller** sur la machine :
+`curl -fsSL https://ricochet.mawena.cloud/rejoindre/<code> | sudo sh`. Ce lien ne sert qu'une
+fois, pendant 15 minutes (le relais garde le script en mémoire, jamais sur disque) ; le script
+installe l'agent, écrit sa configuration (jeton compris : il n'est jamais affiché) et le
+démarre. Options du formulaire : un utilisateur (terminal avec son shell, fichiers avec ses
+droits), « Joignable en SSH » (installe `openssh-server` et ouvre le port 22 aux tunnels) et
+des clés SSH à ajouter aux clés autorisées de l'utilisateur. Le relais ne garde que
+l'empreinte SHA-256 du jeton. « Révoquer » rend le jeton inutile, oublie un lien pas encore
+utilisé et coupe la connexion de l'agent.
 
 Protections : mots de passe en Argon2id ; code TOTP à usage unique (un code déjà servi est
 refusé) ; 5 échecs par adresse ou 20 par compte en 15 minutes bloquent les essais ; cookie de
@@ -100,7 +105,8 @@ session `HttpOnly`, `Secure`, `SameSite=Strict` (préfixe `__Host-`), valable 12
 
 ### 4. Lancer un agent (sur chaque machine)
 
-Le plus simple : coller dans un terminal de la machine la commande donnée par l'interface.
+Le plus simple : coller dans un terminal de la machine la ligne donnée par l'interface (ou par
+`ccs distant ajouter` de CCS).
 À la main : installer `ricochet-agent`, écrire la configuration dans `/etc/ricochet/agent.toml`,
 droits `600` (modèle : [exemples/agent.toml](exemples/agent.toml)), puis :
 
@@ -181,7 +187,8 @@ curl -H "Authorization: Bearer <jeton>" https://ricochet.mawena.cloud/api/machin
 | `GET /api/portier` | mode Portier : `{actif, connexion, deconnexion}` (sans connexion) |
 | `GET /api/moi` | compte connecté |
 | `GET /api/machines` | machines déclarées, connectées ou non, avec leur dernier état |
-| `POST /api/machines` | `{id, nom}` → `201 {id, jeton}` (`409` si l'identifiant existe) |
+| `POST /api/machines` | `{id, nom, utilisateur?, ports?, cles_ssh?}` → `201 {id, jeton, lien, expire_s}` (`409` si l'identifiant existe, `400` si une option est invalide) |
+| `GET /rejoindre/{code}` | script d'installation de la machine, une seule fois, 15 min (sans connexion ; `404` ensuite) |
 | `DELETE /api/machines/{id}` | révoque la machine (`204`, `404`) |
 | `POST /api/machines/{id}/actualiser` | demande un état à jour (`202`, `404` inconnue, `409` déconnectée) |
 | `GET /api/machines/{id}/terminal?colonnes=80&lignes=24` | WebSocket du terminal (voir ci-dessous) |

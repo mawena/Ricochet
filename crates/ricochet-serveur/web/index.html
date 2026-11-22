@@ -73,15 +73,23 @@
               <input name="utilisateur" pattern="[a-z_][a-z0-9_\-]{0,31}" autocapitalize="none"
                      placeholder="charles">
             </label>
-            <button type="submit">Créer le jeton</button>
+            <label class="case"><input type="checkbox" name="ssh">
+              Joignable en SSH par le relais (calcul réparti de CCS) : installe le serveur SSH
+              et ouvre le port 22 aux tunnels</label>
+            <label>Clés SSH autorisées pour cet utilisateur (une par ligne, facultatif)
+              <textarea name="cles" rows="2" autocapitalize="none" spellcheck="false"
+                        placeholder="ssh-ed25519 AAAA… ccs@serveur"></textarea>
+            </label>
+            <button type="submit">Créer la machine</button>
           </form>
         </details>
 
         <div id="nouveau-jeton" class="carte alerte" hidden>
-          <h2>Jeton de <span id="nouveau-id"></span></h2>
-          <p>Il ne sera <strong>plus jamais affiché</strong>. Collez cette commande dans un
-            terminal de la machine (Ubuntu 24.04, amd64) : elle installe l'agent, écrit sa
-            configuration dans <code>/etc/ricochet/agent.toml</code> et le démarre.</p>
+          <h2>Ajouter <span id="nouveau-id"></span></h2>
+          <p>Collez cette commande dans un terminal de la machine (Ubuntu ou Debian, amd64) :
+            elle installe l'agent, écrit sa configuration dans
+            <code>/etc/ricochet/agent.toml</code> et le démarre. Le lien ne sert
+            <strong>qu'une fois</strong>, pendant 15 minutes ; le jeton n'est jamais affiché.</p>
           <pre id="nouvelle-config"></pre>
           <div class="actions">
             <button type="button" id="copier">Copier</button>

@@ -237,21 +237,9 @@ async function revoquer(m) {
   }
 }
 
-// Commande à coller sur la nouvelle machine : installe l'agent, écrit sa configuration
-// (droits 600, elle contient le jeton) et le démarre. Une seule liste « && » : le shell lit
-// tout avant de lancer sudo, dont la demande de mot de passe n'avale donc pas la suite.
-function commandeInstallation(relais, cree, utilisateur) {
-  const terminal = utilisateur
-    ? `\n[terminal]\ncommande = ["runuser", "-l", "${utilisateur}"]\nmaximum = 8\n` +
-      `\n[fichiers]\nutilisateur = "${utilisateur}"\n`
-    : "";
-  return (
-    `curl -fsSL https://apt.mawena.cloud/installer.sh | sudo sh -s -- ricochet-agent &&\n` +
-    `sudo install -D -m 600 /dev/null /etc/ricochet/agent.toml &&\n` +
-    `sudo tee /etc/ricochet/agent.toml >/dev/null <<'EOF' &&\n` +
-    `relais = "${relais}"\nid = "${cree.id}"\njeton = "${cree.jeton}"\n${terminal}EOF\n` +
-    `sudo systemctl restart ricochet-agent\n`
-  );
+// Commande à coller sur la nouvelle machine : le relais sert le script une seule fois (15 min).
+function commandeInstallation(lien) {
+  return `curl -fsSL ${location.origin}${lien} | sudo sh\n`;
 }
 
 async function ajouterMachine(evenement) {
@@ -262,11 +250,16 @@ async function ajouterMachine(evenement) {
   const nom = formulaire.elements.namedItem("nom").value.trim();
   // Le motif du champ ne laisse passer qu'un nom d'utilisateur Unix : rien à échapper.
   const utilisateur = formulaire.elements.namedItem("utilisateur").value.trim();
+  const ssh = formulaire.elements.namedItem("ssh").checked;
+  const cles = formulaire.elements.namedItem("cles").value
+    .split("\n").map((l) => l.trim()).filter(Boolean);
   try {
-    const cree = await api("POST", "/machines", { id, nom: nom || null });
-    const relais = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/agent`;
+    const cree = await api("POST", "/machines", {
+      id, nom: nom || null, utilisateur: utilisateur || null,
+      ports: ssh ? [22] : [], cles_ssh: cles,
+    });
     $("#nouveau-id").textContent = cree.id;
-    $("#nouvelle-config").textContent = commandeInstallation(relais, cree, utilisateur);
+    $("#nouvelle-config").textContent = commandeInstallation(cree.lien);
     $("#nouveau-jeton").hidden = false;
     formulaire.reset();
     $("#ajout").open = false;

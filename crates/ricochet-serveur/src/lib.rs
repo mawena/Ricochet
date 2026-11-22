@@ -20,6 +20,7 @@ mod fichiers;
 mod messages;
 mod portier;
 mod push;
+mod rejoindre;
 mod terminal;
 mod tunnel;
 mod web;
@@ -54,6 +55,8 @@ pub struct Relais {
     pub limite_messages: messages::Debit,
     /// Dernières ouvertures d'applications web notées à l'audit (en mémoire).
     pub(crate) ouvertures: applis::Ouvertures,
+    /// Liens d'installation à usage unique (en mémoire).
+    pub liens: rejoindre::Liens,
 }
 
 impl Relais {
@@ -68,6 +71,7 @@ impl Relais {
             essais_compte: comptes::Limiteur::new(comptes::ECHECS_MAX_COMPTE),
             sessions_portier: portier::Sessions::default(),
             push,
+            liens: rejoindre::Liens::default(),
             limite_messages: messages::Debit::default(),
             ouvertures: applis::Ouvertures::default(),
         }
@@ -95,6 +99,7 @@ pub fn application(relais: Arc<Relais>) -> Router {
     Router::new()
         .route("/sante", get(|| async { "ok" }))
         .route("/agent", get(agents::connexion))
+        .route("/rejoindre/{code}", get(rejoindre::servir))
         .nest("/api", api::routeur(relais.clone()))
         .merge(web::routeur())
         .layer(middleware::map_response(entetes_de_securite))

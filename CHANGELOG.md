@@ -6,6 +6,18 @@ Toutes les évolutions notables de Ricochet. Format inspiré de
 
 ## [Non publié]
 
+## [0.7.0] - 2026-11-22
+
+### Ajouté
+- **Lien d'installation à usage unique** : `POST /api/machines` accepte `utilisateur`, `ports`
+  (tunnels) et `cles_ssh`, et renvoie `lien` (`/rejoindre/<code>`, 15 min, une seule lecture,
+  gardé en mémoire). `GET /rejoindre/{code}` sert le script qui installe l'agent, écrit
+  `agent.toml` (terminal, fichiers, tunnel), installe `openssh-server` et ajoute les clés SSH
+  si le port 22 est ouvert, puis démarre l'agent. Lecture inscrite au journal
+  (`lien_installation_lu`) ; la révocation oublie le lien.
+- Interface : case « Joignable en SSH », clés SSH autorisées, et une ligne courte
+  `curl -fsSL … | sudo sh` à la place de la longue commande qui montrait le jeton.
+
 ## [0.6.0] - 2026-11-21
 
 ### Ajouté
