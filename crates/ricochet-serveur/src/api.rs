@@ -22,7 +22,7 @@ use serde_json::json;
 use crate::{
     Adresse, Relais, applis, comptes, config, fichiers, jeton, messages, portier, push,
     registre::{Commande, ErreurEnvoi, VueMachine, maintenant},
-    terminal, totp, tunnel,
+    rejoindre, terminal, totp, tunnel,
 };
 
 /// Nom du compte inscrit au journal pour les appels faits avec le jeton de la configuration.
@@ -342,6 +342,15 @@ struct NouvelleMachine {
     id: String,
     #[serde(default)]
     nom: Option<String>,
+    /// Compte Unix du terminal et des fichiers (sinon : ni terminal, ni fichiers).
+    #[serde(default)]
+    utilisateur: Option<String>,
+    /// Ports locaux ouverts aux tunnels (22 : SSH, installé par le script).
+    #[serde(default)]
+    ports: Vec<u16>,
+    /// Clés SSH ajoutées aux clés autorisées de `utilisateur` (avec le port 22).
+    #[serde(default)]
+    cles_ssh: Vec<String>,
 }
 
 /// Déclare une machine et renvoie son jeton : il n'est montré qu'une fois, seule son empreinte
@@ -367,6 +376,40 @@ async fn ajouter_machine(
     if nom.is_some_and(|n| n.chars().count() > 100) {
         return Ok((StatusCode::BAD_REQUEST, "nom trop long (100 au plus)").into_response());
     }
+    let utilisateur = nouvelle
+        .utilisateur
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty());
+    if utilisateur.is_some_and(|u| !rejoindre::utilisateur_valide(u)) {
+        return Ok((StatusCode::BAD_REQUEST, "utilisateur invalide").into_response());
+    }
+    let mut ports = nouvelle.ports.clone();
+    ports.sort_unstable();
+    ports.dedup();
+    if ports.len() > rejoindre::PORTS_MAX || ports.contains(&0) {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "ports invalides (1 à 65535, 16 au plus)",
+        )
+            .into_response());
+    }
+    let cles: Vec<String> = nouvelle
+        .cles_ssh
+        .iter()
+        .map(|c| c.trim().to_owned())
+        .filter(|c| !c.is_empty())
+        .collect();
+    if cles.len() > rejoindre::CLES_MAX || !cles.iter().all(|c| rejoindre::cle_ssh_valide(c)) {
+        return Ok((StatusCode::BAD_REQUEST, "clé SSH invalide").into_response());
+    }
+    if !cles.is_empty() && (utilisateur.is_none() || !ports.contains(&22)) {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            "les clés SSH demandent un utilisateur et le port 22",
+        )
+            .into_response());
+    }
     let valeur = jeton::nouveau()?;
     if !relais
         .base
@@ -380,9 +423,21 @@ async fn ajouter_machine(
         "machine_ajoutee",
         &nouvelle.id,
     );
+    let code = relais.liens.ajouter(rejoindre::Installation {
+        id: nouvelle.id.clone(),
+        jeton: valeur.clone(),
+        utilisateur: utilisateur.map(str::to_owned),
+        ports,
+        cles_ssh: cles,
+    })?;
     Ok((
         StatusCode::CREATED,
-        Json(json!({ "id": nouvelle.id, "jeton": valeur })),
+        Json(json!({
+            "id": nouvelle.id,
+            "jeton": valeur,
+            "lien": format!("/rejoindre/{code}"),
+            "expire_s": rejoindre::VALIDITE.as_secs(),
+        })),
     )
         .into_response())
 }
@@ -398,6 +453,7 @@ async fn revoquer_machine(
         return Ok((StatusCode::NOT_FOUND, "machine inconnue").into_response());
     }
     relais.registre.retirer(&id);
+    relais.liens.oublier_machine(&id);
     relais.noter(Some(&operateur.compte), &adresse, "machine_revoquee", &id);
     Ok(StatusCode::NO_CONTENT.into_response())
 }
@@ -749,6 +805,57 @@ mod tests {
         assert_eq!(liste[0]["id"], "pc");
         assert_eq!(liste[0]["nom"], "Mon PC");
         assert_eq!(liste[0]["connectee"], false);
+    }
+
+    #[tokio::test]
+    async fn lien_d_installation() {
+        let relais = relais();
+        let corps = serde_json::json!({
+            "id": "nouveau-pc", "utilisateur": "charles", "ports": [22, 22, 7341],
+            "cles_ssh": ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabc ccs@vps"],
+        });
+        let reponse = appeler(&relais, "POST", "/api/machines", &[BEARER], Some(corps)).await;
+        assert_eq!(reponse.statut, 201, "{}", reponse.corps);
+        let cree: serde_json::Value = serde_json::from_str(&reponse.corps).unwrap();
+        let lien = cree["lien"].as_str().unwrap();
+        assert!(lien.starts_with("/rejoindre/"));
+        let hote = [("host", "relais.exemple")];
+        let script = appeler(&relais, "GET", lien, &hote, None).await;
+        assert_eq!(script.statut, 200);
+        assert!(
+            script
+                .corps
+                .contains("relais = \"ws://relais.exemple/agent\"")
+        );
+        assert!(script.corps.contains(cree["jeton"].as_str().unwrap()));
+        assert!(script.corps.contains("ports = [22, 7341]"));
+        assert_eq!(appeler(&relais, "GET", lien, &hote, None).await.statut, 404);
+
+        let mauvais = |corps: serde_json::Value| {
+            let relais = relais.clone();
+            async move {
+                appeler(&relais, "POST", "/api/machines", &[BEARER], Some(corps))
+                    .await
+                    .statut
+            }
+        };
+        let cle = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabc";
+        assert_eq!(
+            mauvais(serde_json::json!({"id": "a", "utilisateur": "Root!"})).await,
+            400
+        );
+        assert_eq!(
+            mauvais(serde_json::json!({"id": "b", "ports": [0]})).await,
+            400
+        );
+        assert_eq!(
+            mauvais(serde_json::json!({"id": "c", "utilisateur": "u", "ports": [22], "cles_ssh": ["x'"]})).await,
+            400
+        );
+        assert_eq!(
+            mauvais(serde_json::json!({"id": "d", "cles_ssh": [cle]})).await,
+            400
+        );
     }
 
     #[tokio::test]

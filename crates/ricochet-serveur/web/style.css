@@ -66,8 +66,10 @@ main { max-width: 52rem; margin: 0 auto; padding: 1rem; }
 form { display: grid; gap: 0.8rem; }
 #formulaire-connexion { max-width: 24rem; margin: 2rem auto; }
 label { display: grid; gap: 0.3rem; font-size: 0.9rem; color: var(--doux); }
+label.case { display: flex; gap: 0.5rem; align-items: flex-start; }
+label.case input { width: auto; margin-top: 0.2rem; }
 
-input {
+input, textarea {
   font: inherit;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--bord);
@@ -76,7 +78,8 @@ input {
   color: var(--texte);
   width: 100%;
 }
-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+textarea { font-family: monospace; font-size: 0.85rem; resize: vertical; }
 
 button {
   font: inherit;
