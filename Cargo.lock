@@ -1293,7 +1293,7 @@ dependencies = [
 
 [[package]]
 name = "ricochet-agent"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1323,7 +1323,7 @@ dependencies = [
 
 [[package]]
 name = "ricochet-protocole"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "data-encoding",
  "serde",
@@ -1332,7 +1332,7 @@ dependencies = [
 
 [[package]]
 name = "ricochet-serveur"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "aes-gcm",
  "anyhow",

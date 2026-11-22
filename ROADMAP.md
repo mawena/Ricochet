@@ -111,6 +111,11 @@ données de la banque dans le relais.
 - [ ] 5.2 Redémarrer ou éteindre la machine (avec confirmation)
 - [ ] 5.3 Historique de l'état et alertes (machine hors ligne, disque presque plein)
 
+## Ajout d'une machine en une ligne (0.7.0)
+- [x] Lien `/rejoindre/<code>` à usage unique (15 min) : agent, configuration, serveur SSH, clés autorisées
+- [x] Options `utilisateur`, `ports`, `cles_ssh` de `POST /api/machines` ; interface mise à jour
+- [ ] Essai réel sur un nouveau PC (avec `ccs distant ajouter` de CCS 1.2.0)
+
 ## Phase 6 : machines sans agent (par nom de domaine)
 - [ ] 6.1 Déclarer une machine joignable en SSH (hôte, port, utilisateur, clé)
 - [ ] 6.2 Le relais s'y connecte en SSH : terminal, état et fichiers par la même interface
